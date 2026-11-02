@@ -22,3 +22,19 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t defensive-dispatch .
+      - name: Smoke test
+        run: |
+          docker run --rm defensive-dispatch --help
+          # Without settings it must fail cleanly with a helpful message
+          out=$(docker run --rm defensive-dispatch https://example.com/a --dry-run 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q "Missing setting ANTHROPIC_API_KEY"
+          # Must not run as root
+          test "$(docker run --rm --entrypoint id defensive-dispatch -u)" != "0"

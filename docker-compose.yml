@@ -1,0 +1,11 @@
+# Usage:
+#   docker compose build
+#   docker compose run --rm summarize https://example.com/article --dry-run
+#   docker compose run --rm summarize https://example.com/article
+services:
+  summarize:
+    build: .
+    image: defensive-dispatch
+    env_file: .env
+    volumes:
+      - ./pages:/data   # put saved pages here for --html-file

@@ -14,4 +14,6 @@ You should get a response within a few days.
   (*Users → Profile → Application Passwords → Revoke*).
 - Use a WordPress account with the lowest role that can create posts (Author).
 - Only connect to WordPress over HTTPS.
+- With Docker, pass settings at run time (`--env-file .env` or Compose's `env_file`). Never copy
+  `.env` into an image or push an image that contains it; `.dockerignore` excludes it from builds.
 - If a key or password is ever committed, revoke it immediately, then remove it from the history.

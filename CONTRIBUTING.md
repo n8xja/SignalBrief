@@ -18,6 +18,10 @@ Python version. **Never paste API keys, Application Passwords or your `.env` fil
    ```
 3. Make your change and add or update tests in `test_summarize.py`.
 4. Run the tests: `pytest -q`
+   If you changed the Dockerfile or dependencies, also check the image builds and starts:
+   ```bash
+   docker build -t defensive-dispatch . && docker run --rm defensive-dispatch --help
+   ```
 5. Open a pull request describing what changed and why.
 
 ## Guidelines

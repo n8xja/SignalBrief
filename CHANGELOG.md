@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Dockerfile (non-root, Python 3.12 slim), `.dockerignore` and `docker-compose.yml`.
+- CI job that builds and smoke-tests the Docker image.
+- Docker instructions in README, CONTRIBUTING and SECURITY.
+
 ## [0.1.0] - 2026-11-02
 
 ### Added

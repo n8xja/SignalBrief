@@ -49,7 +49,7 @@ URL ──► fetch page ──► extract article text ──► Claude: title 
 
 ## Requirements
 
-- Python 3.9 or later
+- Python 3.9 or later, **or** Docker (see [Running with Docker](#running-with-docker))
 - A Claude API key from [platform.claude.com](https://platform.claude.com) (API usage is billed
   separately from a Claude subscription)
 - A self-hosted WordPress site served over **HTTPS** with the REST API enabled (it is by default)
@@ -109,6 +109,41 @@ On success, the last line shows the draft's edit link:
 Draft created (post 128): https://defensivedispatch.schliesser.org/wp-admin/post.php?post=128&action=edit
 ```
 
+## Running with Docker
+
+No local Python needed. Build the image once:
+
+```bash
+docker build -t defensive-dispatch .
+```
+
+Then run it with your `.env` file:
+
+```bash
+# Preview
+docker run --rm --env-file .env defensive-dispatch https://example.com/article --dry-run
+
+# Create the WordPress draft
+docker run --rm --env-file .env defensive-dispatch https://example.com/article
+```
+
+To use a saved page, mount the folder that holds it at `/data`:
+
+```bash
+docker run --rm --env-file .env -v "$PWD/pages:/data" \
+  defensive-dispatch https://example.com/article --html-file saved-page.html
+```
+
+Or with Docker Compose (reads `.env` and mounts `./pages` automatically):
+
+```bash
+docker compose build
+docker compose run --rm summarize https://example.com/article --dry-run
+```
+
+The image runs as an unprivileged user, and `.env` is excluded from the build by `.dockerignore`,
+so your keys are never baked into the image.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -138,6 +173,8 @@ GitHub Actions runs them on every push and pull request.
 ├── requirements.txt        # runtime dependencies
 ├── requirements-dev.txt    # test dependencies
 ├── .env.example            # settings template
+├── Dockerfile              # container image
+├── docker-compose.yml      # optional Compose setup
 └── .github/                # CI workflow and issue/PR templates
 ```
 
