@@ -111,7 +111,12 @@ Draft created (post 128): https://defensivedispatch.schliesser.org/wp-admin/post
 
 ## Running with Docker
 
-No local Python needed. Build the image once:
+No local Python needed.
+
+> **New to Docker?** Follow the step-by-step [Docker guide](docs/DOCKER.md). It covers installing
+> Docker on Windows, macOS and Linux, creating `.env`, building, running and troubleshooting.
+
+Quick start for Docker users. Build the image once:
 
 ```bash
 docker build -t defensive-dispatch .
@@ -175,6 +180,7 @@ GitHub Actions runs them on every push and pull request.
 ├── .env.example            # settings template
 ├── Dockerfile              # container image
 ├── docker-compose.yml      # optional Compose setup
+├── docs/DOCKER.md          # beginner's Docker guide
 └── .github/                # CI workflow and issue/PR templates
 ```
 

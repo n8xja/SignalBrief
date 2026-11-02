@@ -235,8 +235,13 @@ def main(argv: list[str] | None = None) -> int:
             wp = {k: require_env(k) for k in ("WP_URL", "WP_USER", "WP_APP_PASSWORD")}
 
         if args.html_file:
-            with open(args.html_file, encoding="utf-8", errors="replace") as fh:
-                raw = fh.read()
+            try:
+                with open(args.html_file, encoding="utf-8", errors="replace") as fh:
+                    raw = fh.read()
+            except OSError as exc:
+                raise DispatchError(f"Could not read --html-file {args.html_file}: {exc.strerror}. "
+                                    "Check the file name and, with Docker, that its folder is "
+                                    "mounted at /data.") from exc
         else:
             raw = fetch_html(args.url)
         article = extract_article(raw, args.url)

@@ -91,6 +91,13 @@ def test_create_wp_draft_auth_error():
             s.create_wp_draft("https://site.org", "u", "p", "T", "C")
 
 
+def test_missing_html_file_gives_clear_error(monkeypatch, capsys):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    code = s.main(["https://example.com/a", "--dry-run", "--html-file", "/nonexistent/page.html"])
+    assert code == 1
+    assert "Could not read --html-file" in capsys.readouterr().err
+
+
 def test_extract_article_from_html():
     page = ("<html><head><title>Test Headline</title></head><body><nav>Menu Home About</nav>"
             f"<article><h1>Test Headline</h1><p>{ARTICLE_TEXT}</p></article>"
