@@ -16,8 +16,9 @@ ARTICLE = {"url": "https://example.com/a?x=1&y=2", "title": "Acme VPN <flaw>", "
 
 GOOD = {
     "working_title": "Acme VPN Gateway Bug Under Active Attack",
-    "summary": ("A serious bug in Acme's VPN appliance, CVE-2026-12345, lets outsiders run code on it. "
-                "Intruders began abusing it around the start of October. " * 6).strip(),
+    "bluf": ("A serious bug in Acme's VPN appliance, CVE-2026-12345, lets outsiders run code on it. "
+             "Intruders began abusing it around the start of October. "
+             "Teams running the appliance should update to v4.2.1 right away."),
     "key_points": ["Patch Acme VPN now.", "CVE-2026-12345 is critical.", "Exploited since October.",
                    "Look for web shells.", "Watch for lateral movement."],
 }
@@ -38,7 +39,7 @@ def test_copied_phrases_detects_verbatim_run():
 
 
 def test_copied_phrases_allows_paraphrase():
-    assert s.copied_phrases(GOOD["summary"], ARTICLE_TEXT) == []
+    assert s.copied_phrases(GOOD["bluf"], ARTICLE_TEXT) == []
 
 
 def test_validate_good_result():
@@ -205,8 +206,27 @@ def test_text_file_title_override():
     assert art["title"] == "Given" and art["text"].startswith("Researchers")
 
 
-def test_short_article_gets_shorter_summary_target(capsys):
-    assert s.summary_range({"text": "word " * 200}) == (50, 150)
-    assert s.summary_range({"text": "word " * 1000}) == (150, 250)
+def test_short_article_warns(capsys):
     s.article_from_text("T\n" + "word " * 200, "https://e.com")
     assert "Only 200 words" in capsys.readouterr().err
+
+
+def test_bluf_with_four_sentences_is_rejected():
+    bad = {**GOOD, "bluf": GOOD["bluf"] + " A fourth sentence adds more."}
+    assert any("2 or 3 concise sentences" in p for p in s.validate(bad, ARTICLE))
+
+
+def test_bluf_too_long_is_rejected():
+    bad = {**GOOD, "bluf": "Defenders " + "really " * 100 + "should patch."}
+    assert any("2 or 3 concise sentences" in p for p in s.validate(bad, ARTICLE))
+
+
+def test_sentence_count_ignores_identifiers():
+    assert s.count_sentences("Node.js patched c/dec/decode.c in v22.1.4. Patch now.") == 2
+
+
+def test_post_has_bluf_heading_first():
+    out = s.build_post_content(GOOD, ARTICLE)
+    first, second = out.split("\n\n")[:2]
+    assert "BLUF: Bottom Line Up Front" in first and "wp:heading" in first
+    assert GOOD["bluf"].split(",")[0].replace("'", "&#x27;") in second

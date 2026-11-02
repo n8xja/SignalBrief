@@ -45,7 +45,8 @@ MAX_ATTEMPTS = 2             # first try + one retry with feedback
 SYSTEM_PROMPT = """You are an analyst helping a cybersecurity threat-intelligence writer curate articles worth sharing.
 You will receive the text of one article. Produce:
 - working_title: a short, neutral working title in your own words (do not reuse the headline).
-- summary: in your own words, 1-3 paragraphs separated by blank lines, at the length given in the request.
+- bluf: the Bottom Line Up Front. 2 or 3 concise sentences (at most about 70 words) in one paragraph,
+  in your own words: what happened, who is affected, and what defenders should do.
 - key_points: exactly 5 bullets with the most important takeaways for security defenders.
   Each is one sentence of at most about 30 words.
 
@@ -58,14 +59,18 @@ Respond with the JSON object only."""
 
 # JSON outputs (output_config.format) guarantee the response matches this schema.
 # The exact bullet count is enforced by validate(), not the schema.
+BLUF_HEADING = "BLUF: Bottom Line Up Front"
+BLUF_MAX_SENTENCES = 3
+BLUF_MAX_WORDS = 90
+
 SUMMARY_SCHEMA = {
     "type": "object",
     "properties": {
         "working_title": {"type": "string"},
-        "summary": {"type": "string"},
+        "bluf": {"type": "string"},
         "key_points": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["working_title", "summary", "key_points"],
+    "required": ["working_title", "bluf", "key_points"],
     "additionalProperties": False,
 }
 
@@ -168,9 +173,10 @@ def article_from_text(raw_text: str, url: str, title: str | None = None) -> dict
     return _check_length({"url": url, "title": title or url, "text": "\n".join(lines).strip()})
 
 
-def summary_range(article: dict) -> tuple[int, int]:
-    """Target summary length in words: shorter for short articles."""
-    return (50, 150) if len(article["text"].split()) < SHORT_ARTICLE_WORDS else (150, 250)
+def count_sentences(text: str) -> int:
+    """Count sentences, ignoring periods inside identifiers such as v1.2.3, decode.c or e.g."""
+    text = re.sub(r"\b(e\.g|i\.e|etc|vs|approx|ca)\.", "x", text.strip(), flags=re.I)
+    return len([p for p in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\u201c])", text) if p.strip()])
 
 
 # ---------------------------------------------------------------- validation
@@ -199,14 +205,16 @@ def validate(result: dict, article: dict) -> list[str]:
     points = [p.strip() for p in result.get("key_points", []) if p and p.strip()]
     if len(points) != 5:
         problems.append(f"Provide exactly 5 key points (got {len(points)}).")
-    summary = result.get("summary", "").strip()
-    word_count = len(summary.split())
-    lo, hi = summary_range(article)
-    if not int(lo * 0.7) <= word_count <= int(hi * 1.2):
-        problems.append(f"Summary should be {lo}-{hi} words (got {word_count}).")
+    bluf = result.get("bluf", "").strip()
+    sentences, words = count_sentences(bluf), len(bluf.split())
+    if not bluf:
+        problems.append("Provide the BLUF.")
+    elif sentences > BLUF_MAX_SENTENCES or words > BLUF_MAX_WORDS:
+        problems.append(f"The BLUF must be 2 or 3 concise sentences, at most about 70 words "
+                        f"(got {sentences} sentences, {words} words).")
     if not result.get("working_title", "").strip():
         problems.append("Provide a working title.")
-    all_text = " ".join([result.get("working_title", ""), summary, *points])
+    all_text = " ".join([result.get("working_title", ""), bluf, *points])
     copied = copied_phrases(all_text, article["text"])
     if copied:
         sample = "; ".join(f'"{c}"' for c in copied[:5])
@@ -219,9 +227,7 @@ def validate(result: dict, article: dict) -> list[str]:
 def call_claude(client, model: str, article: dict, feedback: list[str] | None = None) -> dict:
     import anthropic
 
-    lo, hi = summary_range(article)
-    prompt = (f"Write the summary in {lo}-{hi} words.\n\n"
-              f"Article title: {article['title']}\nURL: {article['url']}\n\n"
+    prompt = (f"Article title: {article['title']}\nURL: {article['url']}\n\n"
               f"<article>\n{article['text']}\n</article>")
     if feedback:
         prompt += ("\n\nYour previous attempt had these problems. Fix all of them:\n- "
@@ -265,6 +271,7 @@ def summarize(client, model: str, article: dict) -> dict:
         feedback = validate(result, article)
         if not feedback:
             result["key_points"] = [p.strip() for p in result["key_points"]]
+            result["bluf"] = " ".join(result["bluf"].split())
             return result
         print(f"[attempt {attempt}] output needs fixing: {feedback}", file=sys.stderr)
     raise BriefError("Summary still failed checks after a retry: " + " | ".join(feedback))
@@ -273,13 +280,12 @@ def summarize(client, model: str, article: dict) -> dict:
 # ---------------------------------------------------------------- WordPress
 
 def build_post_content(result: dict, article: dict) -> str:
-    """Gutenberg block markup: summary paragraphs, Key Points list, Read more link."""
+    """Gutenberg block markup: BLUF, Key Points list, Read more link."""
     esc = html.escape
-    blocks = []
-    for para in re.split(r"\n\s*\n", result["summary"].strip()):
-        para = " ".join(para.split())
-        if para:
-            blocks.append(f"<!-- wp:paragraph -->\n<p>{esc(para)}</p>\n<!-- /wp:paragraph -->")
+    blocks = [
+        f'<!-- wp:heading -->\n<h2 class="wp-block-heading">{esc(BLUF_HEADING)}</h2>\n<!-- /wp:heading -->',
+        f"<!-- wp:paragraph -->\n<p>{esc(' '.join(result['bluf'].split()))}</p>\n<!-- /wp:paragraph -->",
+    ]
     blocks.append('<!-- wp:heading -->\n<h2 class="wp-block-heading">Key Points</h2>\n<!-- /wp:heading -->')
     items = "\n".join(f"<!-- wp:list-item -->\n<li>{esc(p)}</li>\n<!-- /wp:list-item -->"
                       for p in result["key_points"])
@@ -389,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("url", nargs="?", help="URL of the article")
     parser.add_argument("--check-wp", action="store_true",
                         help="only test the WordPress login and role, then exit")
-    parser.add_argument("--dry-run", action="store_true", help="print the summary; do not post to WordPress")
+    parser.add_argument("--dry-run", action="store_true", help="print the BLUF and key points; do not post to WordPress")
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--html-file", help="use a saved copy of the page instead of fetching it")
     source.add_argument("--text-file", help="use the article text copied into a plain-text file "
@@ -425,7 +431,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps({"source": {"url": article["url"], "title": article["title"]}, **result}, indent=2))
         else:
-            print(f"\n{result['working_title']}\n\n{result['summary']}\n\nKey Points")
+            print(f"\n{result['working_title']}\n\n{BLUF_HEADING}\n{result['bluf']}\n\nKey Points")
             for p in result["key_points"]:
                 print(f"  • {p}")
             print(f"\nRead more: {article['title']} <{article['url']}>")

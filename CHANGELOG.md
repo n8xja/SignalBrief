@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- The summary is now a **BLUF: Bottom Line Up Front**: 2 or 3 concise sentences (checked: at most
+  3 sentences and about 90 words), shown under its own heading at the top of the draft. The JSON
+  output field is now `bluf` instead of `summary`.
 - Project renamed to **Signal Brief** (repository `SignalBrief`, Docker image `signal-brief`).
 - README introduction rewritten around curation and respect for the original authors.
 - Site-specific URLs replaced with generic examples.

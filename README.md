@@ -8,8 +8,8 @@
 
 Signal Brief helps you pick out the important stories from the noise and share them
 responsibly. Give it the URL of an article worth passing on. It fetches the page, has
-[Claude](https://platform.claude.com) write a short summary and the **5 most important points**
-in its own words, and saves it as a **draft** post on your WordPress site.
+[Claude](https://platform.claude.com) write a 2–3 sentence **BLUF (Bottom Line Up Front)** and the
+**5 most important points** in its own words, and saves it as a **draft** post on your WordPress site.
 
 The draft is a starting point, not a finished post: you edit it, add your own analysis and voice,
 and publish it when it's yours. Every post ends with a **Read more** link that sends readers to
@@ -29,10 +29,10 @@ Works with any self-hosted WordPress site.
 ## How it works
 
 ```
-URL ──► fetch page ──► extract article text ──► Claude: title + summary + 5 key points
+URL ──► fetch page ──► extract article text ──► Claude: title + BLUF + 5 key points
                                                         │
                                                         ▼
-                                  checks: exactly 5 points, length OK, no copied text
+                                  checks: BLUF ≤ 3 sentences, exactly 5 points, no copied text
                                                         │  (one retry with feedback)
                                                         ▼
                                   WordPress REST API ──► draft post ──► edit link
@@ -43,7 +43,7 @@ URL ──► fetch page ──► extract article text ──► Claude: title 
 | Section | Details |
 |---|---|
 | Title | A working title written by Claude, ready for you to edit |
-| Summary | 150–250 words, paraphrased |
+| **BLUF: Bottom Line Up Front** | 2 or 3 concise sentences (about 70 words at most): what happened, who is affected, and what defenders should do |
 | Key Points | Exactly 5 bullets aimed at security defenders |
 | Read more | Link to the original article (opens in a new tab) |
 
@@ -51,7 +51,8 @@ URL ──► fetch page ──► extract article text ──► Claude: title 
 
 - **No copied text.** If any 8-word run in the output also appears in the article, the output
   is rejected and Claude rewrites it.
-- **Exactly 5 key points** and a reasonable summary length.
+- **A short BLUF:** no more than 3 sentences and about 90 words.
+- **Exactly 5 key points.**
 - **Drafts only.** Posts are always created with `status: draft`.
 - If the checks still fail after one retry, nothing is posted.
 

@@ -253,7 +253,7 @@ You should see the tool's help text, starting with `usage: summarize.py`. Your i
 
 ## 7. Run a test (dry run)
 
-A **dry run** fetches the article and prints the summary, but **does not** post anything to
+A **dry run** fetches the article and prints the BLUF and key points, but **does not** post anything to
 WordPress. Always do this first to check your API key works.
 
 Replace the URL with a real article:
@@ -280,7 +280,8 @@ Fetched: Article headline (1234 words)
 
 Working Title Written by Claude
 
-Summary paragraph...
+BLUF: Bottom Line Up Front
+Two or three short sentences: what happened, who is affected, and what to do.
 
 Key Points
   • Point one
@@ -491,7 +492,7 @@ menu bar.
    ```bash
    cd ~/Downloads/SignalBrief-main
    ```
-2. Preview the summary (nothing is posted):
+2. Preview the BLUF and key points (nothing is posted):
    ```bash
    docker run --rm --env-file .env signal-brief https://example.com/article --dry-run
    ```
