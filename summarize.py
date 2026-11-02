@@ -290,6 +290,67 @@ def build_post_content(result: dict, article: dict) -> str:
     return "\n\n".join(blocks)
 
 
+LIGHTSAIL_HINT = ("If the site runs on AWS Lightsail (Bitnami) or another Apache/PHP-FPM setup, the web "
+                  "server is probably dropping the login header: see 'WordPress rejected the login' in "
+                  "the README troubleshooting.")
+
+
+def wp_error(resp) -> BriefError:
+    """Turn a WordPress REST API error response into a specific, actionable message."""
+    try:
+        body = resp.json()
+        code, message = body.get("code", ""), body.get("message", "")
+    except ValueError:
+        code, message = "", resp.text[:200]
+    status = resp.status_code
+    if code in ("incorrect_password", "invalid_username", "invalid_email"):
+        return BriefError(f"WordPress says the username or password is wrong ({code}). WP_APP_PASSWORD must be "
+                          "an Application Password (Users -> Profile -> Application Passwords), not your "
+                          "normal login password, and WP_USER must be that user's username.")
+    if code == "application_passwords_disabled":
+        return BriefError("Application Passwords are turned off on this site. They need HTTPS, and some "
+                          "security plugins disable them.")
+    if status == 401 or code in ("rest_not_logged_in",):
+        return BriefError(f"WordPress did not receive the login (HTTP {status}, {code or 'no code'}): it treated "
+                          f"the request as anonymous. {LIGHTSAIL_HINT}")
+    if status == 403:
+        return BriefError(f"WordPress refused the request (HTTP 403, {code or 'no code'}): {message} Make sure "
+                          "WP_USER has at least the Contributor role, and that no security plugin is blocking "
+                          "the REST API.")
+    return BriefError(f"WordPress returned HTTP {status} ({code or 'no code'}): {message}")
+
+
+def wp_request(method: str, wp_url: str, route: str, auth: tuple[str, str], **kwargs):
+    """Call a REST route, falling back to ?rest_route= when pretty permalinks are off."""
+    base = wp_url.rstrip("/")
+    resp = None
+    for endpoint in (f"{base}/wp-json{route}", f"{base}/?rest_route={route}"):
+        try:
+            resp = requests.request(method, endpoint, auth=auth, timeout=30, **kwargs)
+        except requests.RequestException as exc:
+            raise BriefError(f"Could not reach WordPress at {base}: {exc}") from exc
+        if resp.status_code != 404:
+            break
+    return resp
+
+
+def check_wp(wp_url: str, user: str, app_password: str) -> str:
+    """Log in to WordPress and report who we are; raises BriefError with the cause if it fails."""
+    auth = (user, app_password.replace(" ", ""))
+    resp = wp_request("GET", wp_url, "/wp/v2/users/me", auth, params={"context": "edit"})
+    if resp.status_code >= 400:
+        raise wp_error(resp)
+    me = resp.json()
+    roles = me.get("roles") or []
+    can_draft = bool(set(roles) & {"contributor", "author", "editor", "administrator"})
+    line = f"Logged in to WordPress as '{me.get('username') or me.get('name')}' (roles: {', '.join(roles) or 'unknown'})."
+    if roles and not can_draft:
+        line += " This role can't create posts: it needs Contributor or higher."
+    else:
+        line += " Drafts can be created."
+    return line
+
+
 def create_wp_draft(wp_url: str, user: str, app_password: str, title: str, content: str,
                     category_id: str | None = None) -> tuple[int, str]:
     base = wp_url.rstrip("/")
@@ -297,23 +358,9 @@ def create_wp_draft(wp_url: str, user: str, app_password: str, title: str, conte
     if category_id:
         payload["categories"] = [int(category_id)]
     auth = (user, app_password.replace(" ", ""))
-    endpoints = [f"{base}/wp-json/wp/v2/posts", f"{base}/?rest_route=/wp/v2/posts"]
-    resp = None
-    for endpoint in endpoints:  # second form works when pretty permalinks are off
-        try:
-            resp = requests.post(endpoint, auth=auth, json=payload, timeout=30)
-        except requests.RequestException as exc:
-            raise BriefError(f"Could not reach WordPress at {base}: {exc}") from exc
-        if resp.status_code != 404:
-            break
-    if resp.status_code == 401:
-        raise BriefError("WordPress rejected the login (HTTP 401). Check WP_USER and WP_APP_PASSWORD; "
-                         "see README troubleshooting if the credentials are correct.")
-    if resp.status_code == 403:
-        raise BriefError("WordPress refused to create the post (HTTP 403). Make sure WP_USER has at "
-                         "least the Contributor role, and that no security plugin is blocking the REST API.")
+    resp = wp_request("POST", base, "/wp/v2/posts", auth, json=payload)
     if resp.status_code >= 400:
-        raise BriefError(f"WordPress returned HTTP {resp.status_code}: {resp.text[:300]}")
+        raise wp_error(resp)
     post_id = resp.json()["id"]
     return post_id, f"{base}/wp-admin/post.php?post={post_id}&action=edit"
 
@@ -339,7 +386,9 @@ def require_env(name: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(description="Summarize an article and save it as a WordPress draft.")
-    parser.add_argument("url", help="URL of the article")
+    parser.add_argument("url", nargs="?", help="URL of the article")
+    parser.add_argument("--check-wp", action="store_true",
+                        help="only test the WordPress login and role, then exit")
     parser.add_argument("--dry-run", action="store_true", help="print the summary; do not post to WordPress")
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--html-file", help="use a saved copy of the page instead of fetching it")
@@ -349,7 +398,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="print the result as JSON")
     args = parser.parse_args(argv)
 
+    if not args.check_wp and not args.url:
+        parser.error("the article URL is required (or use --check-wp)")
+
     try:
+        if args.check_wp:
+            print(check_wp(require_env("WP_URL"), require_env("WP_USER"), require_env("WP_APP_PASSWORD")))
+            return 0
+
         from anthropic import Anthropic
         api_key = require_env("ANTHROPIC_API_KEY")
         if not args.dry_run:  # fail fast before spending an API call

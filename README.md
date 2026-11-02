@@ -137,6 +137,9 @@ python summarize.py https://example.com/article --dry-run
 # Summarize and create the WordPress draft
 python summarize.py https://example.com/article
 
+# Test the WordPress login and role only (no article, no Claude key needed)
+python summarize.py --check-wp
+
 # Print the result as JSON
 python summarize.py https://example.com/article --dry-run --json
 
@@ -209,7 +212,8 @@ so your keys are never baked into the image.
 
 | Problem | Fix |
 |---|---|
-| `WordPress rejected the login (HTTP 401)` even with correct credentials | Some Apache setups, including Bitnami WordPress on AWS Lightsail, drop the `Authorization` header. Add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess` or the Apache vhost config, then restart Apache (`sudo /opt/bitnami/ctlscript.sh restart apache`). |
+| `WordPress says the username or password is wrong` | `WP_APP_PASSWORD` must be an **Application Password**, not the password you use to log in to wp-admin. See [Fixing WordPress login errors](#fixing-wordpress-login-errors). |
+| `WordPress did not receive the login` (HTTP 401) | The web server is dropping the login header before WordPress sees it. This is common on AWS Lightsail (Bitnami). See [Fixing WordPress login errors](#fixing-wordpress-login-errors). |
 | `HTTP 403` from WordPress | The user's role may be too low: it needs **Contributor** or higher (a Subscriber can't create posts). Otherwise, a security plugin (Wordfence, Solid Security, etc.) may be blocking the REST API or Application Passwords. Allow them in the plugin settings. |
 | `Could not find enough article text` | The page is JavaScript-rendered or paywalled. Copy the article text into a file and use `--text-file`. |
 | `[warning] Only N words of article text were found` | Part of the article was missed, which is common on pages that load content with JavaScript. If the article is longer than that, use `--text-file`. Short articles get a shorter summary automatically. |
@@ -219,6 +223,100 @@ so your keys are never baked into the image.
 | `The Claude API rejected the key (HTTP 401)` | `ANTHROPIC_API_KEY` is wrong or was revoked. Create a new key at platform.claude.com. |
 | `Model '...' was not found` | `CLAUDE_MODEL` in `.env` has a typo or names a retired model. Remove the line to use the default. |
 | `rate limit was reached, or the account is out of credit` | Wait a minute and retry, or add credit under **Billing** at platform.claude.com. |
+
+## Fixing WordPress login errors
+
+Start by running the built-in check. It tests only the WordPress login and needs no article or
+Claude key:
+
+```bash
+python summarize.py --check-wp
+```
+
+With Docker:
+
+```bash
+docker run --rm --env-file .env signal-brief --check-wp
+```
+
+When it works, it prints something like
+`Logged in to WordPress as 'signalbrief' (roles: contributor). Drafts can be created.`
+Otherwise it tells you which of these problems you have.
+
+### "The username or password is wrong"
+
+WordPress received the login but didn't accept it.
+
+- **Use an Application Password, not your login password.** Being able to log in to wp-admin
+  doesn't mean the API will accept that password: the REST API only accepts Application Passwords.
+  In wp-admin, go to **Users → Profile → Application Passwords**, create one, and paste it into
+  `WP_APP_PASSWORD`. It looks like `abcd EFGH 1234 ijkl MNOP 5678`; the spaces are fine.
+- **Create it on the same user as `WP_USER`.** An Application Password only works with the user it
+  was created for. If you made a separate `signalbrief` user, log in as that user to create it.
+- **`WP_USER` is the username** (shown under **Users**), not the display name.
+- **No quotes or extra spaces** around the values in `.env`.
+
+### "WordPress did not receive the login"
+
+WordPress saw the request as anonymous: the web server removed the `Authorization` header before
+passing the request to WordPress. Apache running PHP through PHP-FPM, which is how Bitnami
+WordPress on AWS Lightsail is set up, does this by default. You fix it once on the server.
+
+**AWS Lightsail (Bitnami)**
+
+1. Connect to the server: in the Lightsail console, open the instance and click
+   **Connect using SSH**.
+2. Back up the two Apache config files:
+   ```bash
+   sudo cp /opt/bitnami/apache/conf/vhosts/wordpress-vhost.conf /opt/bitnami/apache/conf/vhosts/wordpress-vhost.conf.bak
+   ```
+   ```bash
+   sudo cp /opt/bitnami/apache/conf/vhosts/wordpress-https-vhost.conf /opt/bitnami/apache/conf/vhosts/wordpress-https-vhost.conf.bak
+   ```
+3. Open the HTTPS config file:
+   ```bash
+   sudo nano /opt/bitnami/apache/conf/vhosts/wordpress-https-vhost.conf
+   ```
+4. Directly below the line that starts with `<VirtualHost`, add this line:
+   ```apache
+   SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+   ```
+   Save with **Ctrl+O**, **Enter**, then exit with **Ctrl+X**.
+5. Do the same in `wordpress-vhost.conf` (the HTTP version):
+   ```bash
+   sudo nano /opt/bitnami/apache/conf/vhosts/wordpress-vhost.conf
+   ```
+6. Check the configuration, then restart Apache:
+   ```bash
+   sudo /opt/bitnami/apache/bin/apachectl -t
+   ```
+   It should say `Syntax OK`. Then:
+   ```bash
+   sudo /opt/bitnami/ctlscript.sh restart apache
+   ```
+7. Run `--check-wp` again.
+
+If `apachectl -t` reports an error, restore the backups (`sudo cp ....bak` back over the original
+files) and restart Apache.
+
+If those files don't exist, your instance uses Bitnami's older layout. Add the same line inside the
+`<Directory>` block in `/opt/bitnami/apps/wordpress/conf/httpd-app.conf`, then restart Apache.
+
+**Other Apache servers (not Bitnami)**
+
+Add this line near the top of the `.htaccess` file in the WordPress folder, above
+`# BEGIN WordPress`:
+
+```apache
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+```
+
+### Still failing?
+
+- A security plugin (Wordfence, Solid Security, All In One WP Security, etc.) may be blocking the
+  REST API or Application Passwords. Check its settings, or briefly turn it off to test.
+- A CDN or firewall in front of the site (Cloudflare, Lightsail load balancer) can also strip the
+  header. Try `WP_URL` with the server's direct address to rule it out.
 
 ## Development
 

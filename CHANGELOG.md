@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows
   recommended dedicated-user setup.
 
 ### Added
+- `--check-wp` tests the WordPress login and role without needing an article or Claude key.
 - `--text-file` (with optional `--title`) to summarize article text copied into a plain-text file.
 - Dockerfile (non-root, Python 3.12 slim), `.dockerignore` and `docker-compose.yml`.
 - CI job that builds and smoke-tests the Docker image.
@@ -21,6 +22,9 @@ All notable changes to this project are documented here. The format follows
   Mac quick reference (Terminal commands only, no PowerShell).
 
 ### Fixed
+- WordPress errors now say what went wrong: a wrong username or Application Password, a login header
+  dropped by the web server (common on Lightsail/Bitnami), disabled Application Passwords, or too
+  low a role. README has step-by-step fixes.
 - Claude requests now use JSON outputs (`output_config.format`) instead of a forced tool call,
   which newer models reject with `tool_choice: type "tool" and "any" are not supported`.
   Requires `anthropic>=0.80`.

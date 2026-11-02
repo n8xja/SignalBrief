@@ -75,29 +75,57 @@ def test_post_content_structure_and_escaping():
     assert "Acme VPN &lt;flaw&gt;" in last_block
 
 
+def wp_resp(status, body=None):
+    return SimpleNamespace(status_code=status, text=json.dumps(body or {}), json=lambda: body or {})
+
+
 def test_create_wp_draft_posts_draft_and_falls_back_on_404():
-    not_found = SimpleNamespace(status_code=404, text="")
-    created = SimpleNamespace(status_code=201, text="", json=lambda: {"id": 42})
-    with mock.patch.object(s.requests, "post", side_effect=[not_found, created]) as post:
+    with mock.patch.object(s.requests, "request", side_effect=[wp_resp(404), wp_resp(201, {"id": 42})]) as req:
         post_id, link = s.create_wp_draft("https://site.org/", "u", "ab cd", "T", "C", "7")
     assert post_id == 42
     assert link == "https://site.org/wp-admin/post.php?post=42&action=edit"
-    payload = post.call_args.kwargs["json"]
+    assert req.call_args.args[0] == "POST"
+    payload = req.call_args.kwargs["json"]
     assert payload["status"] == "draft" and payload["categories"] == [7]
-    assert post.call_args.kwargs["auth"] == ("u", "abcd")
-    assert "rest_route" in post.call_args.args[0]
+    assert req.call_args.kwargs["auth"] == ("u", "abcd")
+    assert "rest_route" in req.call_args.args[1]
 
 
-def test_create_wp_draft_auth_error():
-    with mock.patch.object(s.requests, "post", return_value=SimpleNamespace(status_code=401, text="")):
-        with pytest.raises(s.BriefError, match="rejected the login"):
+@pytest.mark.parametrize("status,code,expected", [
+    (401, "incorrect_password", "not your normal login password"),
+    (401, "invalid_username", "username or password is wrong"),
+    (401, "rest_cannot_create", "did not receive the login"),
+    (401, "", "did not receive the login"),
+    (401, "application_passwords_disabled", "turned off"),
+    (403, "rest_cannot_create", "Contributor role"),
+])
+def test_wordpress_errors_are_diagnosed(status, code, expected):
+    body = {"code": code, "message": "msg"} if code else {}
+    with mock.patch.object(s.requests, "request", return_value=wp_resp(status, body)):
+        with pytest.raises(s.BriefError, match=expected):
             s.create_wp_draft("https://site.org", "u", "p", "T", "C")
 
 
-def test_create_wp_draft_forbidden_mentions_role():
-    with mock.patch.object(s.requests, "post", return_value=SimpleNamespace(status_code=403, text="")):
-        with pytest.raises(s.BriefError, match="Contributor role"):
-            s.create_wp_draft("https://site.org", "u", "p", "T", "C")
+def test_check_wp_reports_user_and_role():
+    me = {"username": "signalbrief", "roles": ["contributor"]}
+    with mock.patch.object(s.requests, "request", return_value=wp_resp(200, me)) as req:
+        line = s.check_wp("https://site.org", "signalbrief", "a b")
+    assert "signalbrief" in line and "contributor" in line and "Drafts can be created" in line
+    assert req.call_args.args[0] == "GET" and "/wp/v2/users/me" in req.call_args.args[1]
+
+
+def test_check_wp_flags_subscriber():
+    with mock.patch.object(s.requests, "request", return_value=wp_resp(200, {"username": "x", "roles": ["subscriber"]})):
+        assert "needs Contributor" in s.check_wp("https://site.org", "x", "p")
+
+
+def test_check_wp_cli_needs_no_url_or_claude_key(monkeypatch, capsys):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    for k, v in {"WP_URL": "https://site.org", "WP_USER": "u", "WP_APP_PASSWORD": "p"}.items():
+        monkeypatch.setenv(k, v)
+    with mock.patch.object(s.requests, "request", return_value=wp_resp(200, {"username": "u", "roles": ["author"]})):
+        assert s.main(["--check-wp"]) == 0
+    assert "Logged in to WordPress as 'u'" in capsys.readouterr().out
 
 
 def test_missing_html_file_gives_clear_error(monkeypatch, capsys):

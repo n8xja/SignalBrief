@@ -499,6 +499,10 @@ menu bar.
    ```bash
    docker run --rm --env-file .env signal-brief https://example.com/article
    ```
+   If WordPress rejects the login, test only the WordPress connection:
+   ```bash
+   docker run --rm --env-file .env signal-brief --check-wp
+   ```
 4. If the site blocks the tool, save the page into `pages` as `article.html` (Safari: **File →
    Save As…**, **Format: Page Source**), then:
    ```bash
@@ -539,7 +543,7 @@ If you downloaded the ZIP, download it again, copy your `.env` into the new fold
 | `Unable to find image 'signal-brief:latest' locally` then `pull access denied` | The image hasn't been built yet, or was built under a different name. Run step 6. |
 | `open .env: no such file or directory` | You're not in the project folder, or `.env` hasn't been created. Do step 5 from the project folder. On Windows, make sure Notepad didn't save it as `.env.txt`: run `dir` to check, and `Rename-Item .env.txt .env` if needed. |
 | `Error: Missing setting ANTHROPIC_API_KEY` (or another setting) | That line is missing or empty in `.env`, or you forgot `--env-file .env`. |
-| `Error: WordPress rejected the login (HTTP 401)` | Check `WP_USER` and `WP_APP_PASSWORD`. If they're right and your site is on AWS Lightsail (Bitnami), see the Lightsail fix in the [README troubleshooting](../README.md#troubleshooting). |
+| `WordPress says the username or password is wrong` or `WordPress did not receive the login` | Run `docker run --rm --env-file .env signal-brief --check-wp`, then follow [Fixing WordPress login errors](../README.md#fixing-wordpress-login-errors). |
 | `Error: Could not find enough article text` or `The site refused the request` | The site blocks automated tools or needs JavaScript. Use a saved page or copied text (step 9). |
 | `[warning] Only N words of article text were found` | Part of the article was missed. If the article is longer, use copied text with `--text-file` (step 9). |
 | `The Claude API rejected the key`, `Model ... was not found`, or `out of credit` | See the [README troubleshooting](../README.md#troubleshooting) table. |
