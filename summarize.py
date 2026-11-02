@@ -201,9 +201,12 @@ def create_wp_draft(wp_url: str, user: str, app_password: str, title: str, conte
             raise BriefError(f"Could not reach WordPress at {base}: {exc}") from exc
         if resp.status_code != 404:
             break
-    if resp.status_code in (401, 403):
-        raise BriefError(f"WordPress rejected the login (HTTP {resp.status_code}). Check WP_USER and "
-                            "WP_APP_PASSWORD; see README troubleshooting if the credentials are correct.")
+    if resp.status_code == 401:
+        raise BriefError("WordPress rejected the login (HTTP 401). Check WP_USER and WP_APP_PASSWORD; "
+                         "see README troubleshooting if the credentials are correct.")
+    if resp.status_code == 403:
+        raise BriefError("WordPress refused to create the post (HTTP 403). Make sure WP_USER has at "
+                         "least the Contributor role, and that no security plugin is blocking the REST API.")
     if resp.status_code >= 400:
         raise BriefError(f"WordPress returned HTTP {resp.status_code}: {resp.text[:300]}")
     post_id = resp.json()["id"]

@@ -63,7 +63,8 @@ URL ──► fetch page ──► extract article text ──► Claude: title 
 - A Claude API key from [platform.claude.com](https://platform.claude.com) (API usage is billed
   separately from a Claude subscription)
 - A self-hosted WordPress site served over **HTTPS** with the REST API enabled (it is by default)
-- A WordPress user that can create posts (Author role or higher)
+- A WordPress user with the **Contributor** role or higher (see
+  [WordPress user role](#wordpress-user-role))
 
 ## Installation
 
@@ -75,9 +76,39 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+## WordPress user role
+
+The minimum role is **Contributor**. Creating a draft through the REST API needs only the
+`edit_posts` capability, which Contributors have.
+
+| Role | Create drafts | Assign existing categories | Publish | Upload media | Suitable? |
+|---|---|---|---|---|---|
+| Subscriber | No | No | No | No | No: posting fails with HTTP 403 |
+| **Contributor** | Yes | Yes | No | No | **Yes (recommended)** |
+| Author | Yes | Yes | Own posts | Yes | Yes, but more access than needed |
+| Editor / Administrator | Yes | Yes | Any post | Yes | Works, but avoid: far more access than needed |
+
+**Recommended setup:** create a separate WordPress user just for Signal Brief (for example
+`signalbrief`) with the Contributor role, and create the Application Password on that user.
+If the key ever leaks, the worst it can do is add drafts. It can't publish, change existing posts
+or touch site settings.
+
+What this means in practice:
+
+- Drafts appear under **Posts → All Posts** with that user as the author. Before publishing, you
+  can change the author to yourself in the post's settings panel (**Post → Author**).
+- Publishing is done by you, from your own account. That matches the workflow: the draft is a
+  starting point that you edit and make your own.
+- If a future version adds featured images, the user will need the **Author** role, since
+  Contributors can't upload media.
+
+To create the user: in wp-admin go to **Users → Add New User**, enter a username and email,
+set **Role** to **Contributor**, and click **Add New User**. Then log in as that user (or ask an
+administrator) to create its Application Password.
+
 ## Configuration
 
-1. **Create a WordPress Application Password.** In wp-admin, go to
+1. **Create a WordPress Application Password** for the user described above. In wp-admin, go to
    *Users → Profile → Application Passwords*. Name it (for example "Article summarizer"),
    click **Add New Application Password**, and copy the password it shows.
 2. **Create your settings file:**
@@ -164,7 +195,7 @@ so your keys are never baked into the image.
 | Problem | Fix |
 |---|---|
 | `WordPress rejected the login (HTTP 401)` even with correct credentials | Some Apache setups, including Bitnami WordPress on AWS Lightsail, drop the `Authorization` header. Add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess` or the Apache vhost config, then restart Apache (`sudo /opt/bitnami/ctlscript.sh restart apache`). |
-| `HTTP 403` from WordPress | A security plugin (Wordfence, Solid Security, etc.) may be blocking the REST API or Application Passwords. Allow them in the plugin settings. |
+| `HTTP 403` from WordPress | The user's role may be too low: it needs **Contributor** or higher (a Subscriber can't create posts). Otherwise, a security plugin (Wordfence, Solid Security, etc.) may be blocking the REST API or Application Passwords. Allow them in the plugin settings. |
 | `Could not find enough article text` | The page is JavaScript-rendered or paywalled. Save it from your browser and use `--html-file`. |
 | `The site refused the request` | The site blocks scripts. Use `--html-file`. |
 | `Missing setting ...` | A required value is missing from `.env`. |

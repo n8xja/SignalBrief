@@ -12,7 +12,9 @@ You should get a response within a few days.
 - Keep `ANTHROPIC_API_KEY` and `WP_APP_PASSWORD` in `.env`, which is excluded by `.gitignore`.
 - Use a dedicated WordPress Application Password for this tool so it can be revoked on its own
   (*Users → Profile → Application Passwords → Revoke*).
-- Use a WordPress account with the lowest role that can create posts (Author).
+- Use a dedicated WordPress account with the **Contributor** role, the lowest role that can create
+  drafts. A leaked Contributor password can add drafts but can't publish, edit published posts,
+  upload files or change site settings. See [WordPress user role](README.md#wordpress-user-role).
 - Only connect to WordPress over HTTPS.
 - With Docker, pass settings at run time (`--env-file .env` or Compose's `env_file`). Never copy
   `.env` into an image or push an image that contains it; `.dockerignore` excludes it from builds.

@@ -9,6 +9,8 @@ All notable changes to this project are documented here. The format follows
 - Project renamed to **Signal Brief** (repository `SignalBrief`, Docker image `signal-brief`).
 - README introduction rewritten around curation and respect for the original authors.
 - Site-specific URLs replaced with generic examples.
+- Documented the minimum WordPress role as **Contributor** (previously listed as Author), with a
+  recommended dedicated-user setup.
 
 ### Added
 - Dockerfile (non-root, Python 3.12 slim), `.dockerignore` and `docker-compose.yml`.

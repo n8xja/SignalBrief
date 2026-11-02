@@ -178,6 +178,8 @@ WP_APP_PASSWORD=abcd efgh ijkl mnop qrst uvwx
 - **WP_APP_PASSWORD:** in WordPress, go to **Users → Profile → Application Passwords**, type a
   name such as "Article summarizer", click **Add New Application Password**, and copy the password
   it shows. (This is not your normal WordPress login password.)
+- **WP_USER:** the account only needs the **Contributor** role. The safest setup is a separate
+  user just for this tool; see [WordPress user role](../README.md#wordpress-user-role).
 - Don't put quotes around the values or spaces around the `=`.
 
 Save and close the file.

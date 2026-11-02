@@ -91,6 +91,12 @@ def test_create_wp_draft_auth_error():
             s.create_wp_draft("https://site.org", "u", "p", "T", "C")
 
 
+def test_create_wp_draft_forbidden_mentions_role():
+    with mock.patch.object(s.requests, "post", return_value=SimpleNamespace(status_code=403, text="")):
+        with pytest.raises(s.BriefError, match="Contributor role"):
+            s.create_wp_draft("https://site.org", "u", "p", "T", "C")
+
+
 def test_missing_html_file_gives_clear_error(monkeypatch, capsys):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     code = s.main(["https://example.com/a", "--dry-run", "--html-file", "/nonexistent/page.html"])
