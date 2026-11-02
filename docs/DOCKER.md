@@ -19,6 +19,8 @@ says what to type, what you should see, and what to do if something goes wrong.
 12. [Remove everything](#12-remove-everything)
 13. [Troubleshooting](#13-troubleshooting)
 
+**On a Mac?** Jump to the [Mac quick reference](#mac-quick-reference) for every command in order.
+
 ---
 
 ## 1. What Docker is (and why use it)
@@ -122,6 +124,11 @@ This creates a folder named `SignalBrief`.
 All the remaining commands are typed in a terminal, **from inside the project folder** (the
 folder that contains `Dockerfile` and `summarize.py`).
 
+> **Mac users:** use the built-in **Terminal** app. You don't need PowerShell. Every command in
+> this guide labeled **macOS** or **macOS / Linux** works in Terminal as written. Skip anything
+> labeled **Windows** or **PowerShell**. A complete list of Mac commands is in the
+> [Mac quick reference](#mac-quick-reference).
+
 **Windows**
 
 1. Open the project folder in File Explorer.
@@ -130,9 +137,14 @@ folder that contains `Dockerfile` and `summarize.py`).
 
 **macOS**
 
-1. Open **Terminal** (Applications → Utilities → Terminal).
+1. Open **Terminal**: press **Cmd+Space**, type `Terminal`, and press **Enter**
+   (or go to Applications → Utilities → Terminal).
 2. Type `cd ` (with a space after it), drag the project folder from Finder into the Terminal
-   window, and press **Enter**.
+   window, and press **Enter**. Terminal fills in the folder's path for you.
+
+   If the folder is in Downloads, you can instead type:
+   - ZIP download: `cd ~/Downloads/SignalBrief-main`
+   - git clone: `cd ~/Downloads/SignalBrief`
 
 **Linux**
 
@@ -162,8 +174,12 @@ the template `.env.example`.
 | System | Command |
 |---|---|
 | Windows | `notepad .env` |
-| macOS | `open -e .env` |
+| macOS | `open -e .env` (opens in TextEdit; save with **Cmd+S**) |
 | Linux | `nano .env` (save with **Ctrl+O**, **Enter**, exit with **Ctrl+X**) |
+
+> **Mac tip:** Finder hides files whose names start with a dot, so you won't see `.env` there.
+> Press **Cmd+Shift+.** (period) in Finder to show hidden files, or just use the Terminal commands
+> above. `nano .env` also works on a Mac if you prefer editing inside Terminal.
 
 **Fill in these values**, replacing the placeholders:
 
@@ -305,16 +321,31 @@ save the page from your browser and give the tool the saved file.
 1. In the project folder, create a folder named `pages`:
    - Windows: `mkdir pages`
    - macOS / Linux: `mkdir -p pages`
-2. Open the article in your browser, press **Ctrl+S** (Windows/Linux) or **Cmd+S** (macOS),
-   choose **Webpage, HTML only**, and save it into the `pages` folder as `article.html`.
+2. Save the article into the `pages` folder as `article.html`:
+
+   | Browser | How to save |
+   |---|---|
+   | Safari (Mac) | **File → Save As…**, set **Format** to **Page Source**, name it `article.html` |
+   | Chrome (Mac) | **Cmd+S**, set **Format** to **Webpage, HTML Only** |
+   | Firefox (Mac) | **Cmd+S**, set the type to **Web Page, HTML only** |
+   | Chrome / Edge (Windows, Linux) | **Ctrl+S**, choose **Webpage, HTML only** |
+
 3. Run the command for your system. The `-v` option lets the container see your `pages` folder.
 
-**macOS / Linux**
+**macOS (Terminal) / Linux**
 
 ```bash
 docker run --rm --env-file .env -v "$PWD/pages:/data" \
   signal-brief https://example.com/article --html-file article.html
 ```
+
+Or as a single line:
+
+```bash
+docker run --rm --env-file .env -v "$PWD/pages:/data" signal-brief https://example.com/article --html-file article.html
+```
+
+`$PWD` means "the folder I'm in right now", so run this from the project folder.
 
 **Windows (PowerShell)**
 
@@ -385,6 +416,81 @@ docker image prune -a
 
 ---
 
+## Mac quick reference
+
+Every command a Mac user needs, in order. Type or paste them into the **Terminal** app; no
+PowerShell needed. Replace `https://example.com/article` with the article you want, and
+`~/Downloads/SignalBrief-main` with wherever your project folder is.
+
+> Paste one line at a time. The Mac's Terminal (zsh) doesn't allow `#` comments on pasted lines,
+> so the explanations are kept outside the command boxes.
+
+### One-time setup
+
+Install Docker Desktop first (step 2) and make sure it's running: you'll see the whale icon in the
+menu bar.
+
+1. Check Docker is installed and working:
+   ```bash
+   docker --version
+   ```
+   ```bash
+   docker run hello-world
+   ```
+2. Go to the project folder:
+   ```bash
+   cd ~/Downloads/SignalBrief-main
+   ```
+3. Create your settings file, then edit it in TextEdit (save with **Cmd+S**):
+   ```bash
+   cp .env.example .env
+   ```
+   ```bash
+   open -e .env
+   ```
+4. Create the folder for saved web pages:
+   ```bash
+   mkdir -p pages
+   ```
+5. Build the image (note the dot at the end):
+   ```bash
+   docker build -t signal-brief .
+   ```
+
+### Every time
+
+1. Go to the project folder:
+   ```bash
+   cd ~/Downloads/SignalBrief-main
+   ```
+2. Preview the summary (nothing is posted):
+   ```bash
+   docker run --rm --env-file .env signal-brief https://example.com/article --dry-run
+   ```
+3. Create the WordPress draft:
+   ```bash
+   docker run --rm --env-file .env signal-brief https://example.com/article
+   ```
+4. If the site blocks the tool, save the page into `pages` as `article.html` (Safari: **File →
+   Save As…**, **Format: Page Source**), then:
+   ```bash
+   docker run --rm --env-file .env -v "$PWD/pages:/data" signal-brief https://example.com/article --html-file article.html --dry-run
+   ```
+   Remove `--dry-run` to create the draft.
+
+### After updating the project
+
+If you used `git clone`, get the update, then rebuild:
+```bash
+git pull
+```
+```bash
+docker build -t signal-brief .
+```
+If you downloaded the ZIP, download it again, copy your `.env` into the new folder, and rebuild.
+
+---
+
 ## 13. Troubleshooting
 
 | Message or problem | What it means and how to fix it |
@@ -402,6 +508,8 @@ docker image prune -a
 | `Error: The site did not respond in time` (or `Read timed out`) | The site's bot protection is stalling the request rather than refusing it. This isn't a Docker problem. Use a saved page (step 9). |
 | `Error: Could not read --html-file` / file not found | The saved page isn't in the `pages` folder, the name doesn't match, or the `-v` part is missing. |
 | Build fails while downloading (`TLS`, `timeout`, `connection reset`) | A network or proxy problem. Check your internet connection and try again. On a work network, ask IT whether Docker Hub (`registry-1.docker.io`) is allowed. |
+| Mac: `Mounts denied` or `path ... is not shared from the host` | The project folder is outside your home folder (for example on an external drive). Move it into your home folder (Documents or Downloads), or add its location in **Docker Desktop → Settings → Resources → File sharing**. |
+| Mac: Safari saved `article.webarchive` | Safari's default format is Web Archive, which the tool can't read. Save again with **Format: Page Source**. |
 | Windows: build is very slow or Docker Desktop won't start | Make sure virtualization is enabled and WSL 2 is installed: run `wsl --install` in an administrator PowerShell, then restart. |
 
 Still stuck? [Open an issue](https://github.com/n8xja/SignalBrief/issues) with the exact

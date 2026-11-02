@@ -16,7 +16,8 @@ All notable changes to this project are documented here. The format follows
 - Dockerfile (non-root, Python 3.12 slim), `.dockerignore` and `docker-compose.yml`.
 - CI job that builds and smoke-tests the Docker image.
 - Docker instructions in README, CONTRIBUTING and SECURITY.
-- Step-by-step beginner's Docker guide (`docs/DOCKER.md`).
+- Step-by-step beginner's Docker guide (`docs/DOCKER.md`), with Mac-specific instructions and a
+  Mac quick reference (Terminal commands only, no PowerShell).
 
 ### Fixed
 - Page fetching now sends standard browser headers, uses separate connect/read timeouts and

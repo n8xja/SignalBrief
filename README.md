@@ -156,6 +156,7 @@ No local Python needed.
 
 > **New to Docker?** Follow the step-by-step [Docker guide](docs/DOCKER.md). It covers installing
 > Docker on Windows, macOS and Linux, creating `.env`, building, running and troubleshooting.
+> Mac users can go straight to the [Mac quick reference](docs/DOCKER.md#mac-quick-reference).
 
 Quick start for Docker users. Build the image once:
 
