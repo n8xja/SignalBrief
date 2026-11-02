@@ -1,4 +1,4 @@
-# Running Defensive Dispatch with Docker: Step-by-Step Guide
+# Running Signal Brief with Docker: Step-by-Step Guide
 
 This guide assumes you have never used Docker before. Follow the steps in order. Each step
 says what to type, what you should see, and what to do if something goes wrong.
@@ -102,18 +102,18 @@ Choose **one** option.
 
 **Option A: Download a ZIP (no Git needed)**
 
-1. Go to https://github.com/n8xja/DefensiveDispatch
+1. Go to https://github.com/n8xja/SignalBrief
 2. Click the green **Code** button, then **Download ZIP**.
 3. Unzip it somewhere easy to find, such as your Documents folder. You'll get a folder named
-   `DefensiveDispatch-main`.
+   `SignalBrief-main`.
 
 **Option B: Use Git**
 
 ```bash
-git clone https://github.com/n8xja/DefensiveDispatch.git
+git clone https://github.com/n8xja/SignalBrief.git
 ```
 
-This creates a folder named `DefensiveDispatch`.
+This creates a folder named `SignalBrief`.
 
 ---
 
@@ -137,7 +137,7 @@ folder that contains `Dockerfile` and `summarize.py`).
 **Linux**
 
 ```bash
-cd ~/DefensiveDispatch        # or wherever you put the folder
+cd ~/SignalBrief        # or wherever you put the folder
 ```
 
 **Check you're in the right place.** Run `ls` (macOS/Linux) or `dir` (Windows). You should see
@@ -169,7 +169,7 @@ the template `.env.example`.
 
 ```ini
 ANTHROPIC_API_KEY=sk-ant-your-real-key
-WP_URL=https://defensivedispatch.schliesser.org
+WP_URL=https://your-site.example.com
 WP_USER=your-wordpress-username
 WP_APP_PASSWORD=abcd efgh ijkl mnop qrst uvwx
 ```
@@ -195,7 +195,7 @@ whenever you update the project.
 Make sure Docker Desktop is running (Windows/macOS), then in the project folder run:
 
 ```bash
-docker build -t defensive-dispatch .
+docker build -t signal-brief .
 ```
 
 What each part means:
@@ -203,7 +203,7 @@ What each part means:
 | Part | Meaning |
 |---|---|
 | `docker build` | Build an image from the `Dockerfile` |
-| `-t defensive-dispatch` | Name ("tag") the image `defensive-dispatch` so you can refer to it later |
+| `-t signal-brief` | Name ("tag") the image `signal-brief` so you can refer to it later |
 | `.` | Use the current folder. **Don't forget the dot at the end.** |
 
 **What you'll see:** Docker downloads a small Python base image and installs the libraries. The
@@ -212,21 +212,21 @@ It ends with lines like:
 
 ```
  => exporting to image
- => => naming to docker.io/library/defensive-dispatch
+ => => naming to docker.io/library/signal-brief
 ```
 
 **Check that the image exists:**
 
 ```bash
-docker image ls defensive-dispatch
+docker image ls signal-brief
 ```
 
-You should see a row with `defensive-dispatch` under **REPOSITORY** and `latest` under **TAG**.
+You should see a row with `signal-brief` under **REPOSITORY** and `latest` under **TAG**.
 
 **Check that it starts:**
 
 ```bash
-docker run --rm defensive-dispatch --help
+docker run --rm signal-brief --help
 ```
 
 You should see the tool's help text, starting with `usage: summarize.py`. Your image is ready.
@@ -241,7 +241,7 @@ WordPress. Always do this first to check your API key works.
 Replace the URL with a real article:
 
 ```bash
-docker run --rm --env-file .env defensive-dispatch https://example.com/article --dry-run
+docker run --rm --env-file .env signal-brief https://example.com/article --dry-run
 ```
 
 What each part means:
@@ -251,7 +251,7 @@ What each part means:
 | `docker run` | Start a container from an image |
 | `--rm` | Delete the container when it finishes, so they don't pile up |
 | `--env-file .env` | Pass your settings from `.env` into the container |
-| `defensive-dispatch` | The image you built in step 6 |
+| `signal-brief` | The image you built in step 6 |
 | `https://...` | The article to summarize |
 | `--dry-run` | Print only; don't post to WordPress |
 
@@ -281,13 +281,13 @@ Read more: Article headline <https://example.com/article>
 When the dry run looks good, run the same command **without** `--dry-run`:
 
 ```bash
-docker run --rm --env-file .env defensive-dispatch https://example.com/article
+docker run --rm --env-file .env signal-brief https://example.com/article
 ```
 
 The last line shows a link to the new draft:
 
 ```
-Draft created (post 128): https://defensivedispatch.schliesser.org/wp-admin/post.php?post=128&action=edit
+Draft created (post 128): https://your-site.example.com/wp-admin/post.php?post=128&action=edit
 ```
 
 Open the link, review and edit the post, then publish it from WordPress when you're ready.
@@ -311,14 +311,14 @@ save the page from your browser and give the tool the saved file.
 
 ```bash
 docker run --rm --env-file .env -v "$PWD/pages:/data" \
-  defensive-dispatch https://example.com/article --html-file article.html
+  signal-brief https://example.com/article --html-file article.html
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
 docker run --rm --env-file .env -v "${PWD}\pages:/data" `
-  defensive-dispatch https://example.com/article --html-file article.html
+  signal-brief https://example.com/article --html-file article.html
 ```
 
 Notes:
@@ -357,7 +357,7 @@ docker compose run --rm summarize https://example.com/article --html-file articl
    - **Git:** in the project folder, run `git pull`.
 2. Rebuild the image:
    ```bash
-   docker build -t defensive-dispatch .
+   docker build -t signal-brief .
    ```
 
 Your `.env` file is not affected by `git pull`.
@@ -369,7 +369,7 @@ Your `.env` file is not affected by `git pull`.
 To delete the image and free the disk space:
 
 ```bash
-docker image rm defensive-dispatch
+docker image rm signal-brief
 ```
 
 To also remove the Python base image Docker downloaded during the build:
@@ -391,8 +391,8 @@ docker image prune -a
 | `Cannot connect to the Docker daemon` or `error during connect` | Docker isn't running. On Windows/macOS, open Docker Desktop and wait for it to start. On Linux, run `sudo systemctl start docker`. |
 | `permission denied while trying to connect to the Docker daemon socket` (Linux) | Your user isn't in the `docker` group yet. Run `sudo usermod -aG docker $USER`, then log out and back in. |
 | `failed to read Dockerfile` or `open Dockerfile: no such file or directory` | You're not in the project folder. Go back to step 4 and use `ls` / `dir` to check you can see `Dockerfile`. |
-| `"docker build" requires exactly 1 argument` | The dot at the end is missing. The command is `docker build -t defensive-dispatch .` |
-| `Unable to find image 'defensive-dispatch:latest' locally` then `pull access denied` | The image hasn't been built yet, or was built under a different name. Run step 6. |
+| `"docker build" requires exactly 1 argument` | The dot at the end is missing. The command is `docker build -t signal-brief .` |
+| `Unable to find image 'signal-brief:latest' locally` then `pull access denied` | The image hasn't been built yet, or was built under a different name. Run step 6. |
 | `open .env: no such file or directory` | You're not in the project folder, or `.env` hasn't been created. Do step 5 from the project folder. On Windows, make sure Notepad didn't save it as `.env.txt`: run `dir` to check, and `Rename-Item .env.txt .env` if needed. |
 | `Error: Missing setting ANTHROPIC_API_KEY` (or another setting) | That line is missing or empty in `.env`, or you forgot `--env-file .env`. |
 | `Error: WordPress rejected the login (HTTP 401)` | Check `WP_USER` and `WP_APP_PASSWORD`. If they're right and your site is on AWS Lightsail (Bitnami), see the Lightsail fix in the [README troubleshooting](../README.md#troubleshooting). |
@@ -401,5 +401,5 @@ docker image prune -a
 | Build fails while downloading (`TLS`, `timeout`, `connection reset`) | A network or proxy problem. Check your internet connection and try again. On a work network, ask IT whether Docker Hub (`registry-1.docker.io`) is allowed. |
 | Windows: build is very slow or Docker Desktop won't start | Make sure virtualization is enabled and WSL 2 is installed: run `wsl --install` in an administrator PowerShell, then restart. |
 
-Still stuck? [Open an issue](https://github.com/n8xja/DefensiveDispatch/issues) with the exact
+Still stuck? [Open an issue](https://github.com/n8xja/SignalBrief/issues) with the exact
 command you ran and the full error message. **Remove any keys or passwords before posting.**

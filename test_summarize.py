@@ -57,7 +57,7 @@ def test_summarize_retries_then_succeeds():
 
 def test_summarize_gives_up_after_retry():
     bad = {**GOOD, "key_points": []}
-    with pytest.raises(s.DispatchError):
+    with pytest.raises(s.BriefError):
         s.summarize(fake_client(bad, bad), "m", ARTICLE)
 
 
@@ -87,7 +87,7 @@ def test_create_wp_draft_posts_draft_and_falls_back_on_404():
 
 def test_create_wp_draft_auth_error():
     with mock.patch.object(s.requests, "post", return_value=SimpleNamespace(status_code=401, text="")):
-        with pytest.raises(s.DispatchError, match="rejected the login"):
+        with pytest.raises(s.BriefError, match="rejected the login"):
             s.create_wp_draft("https://site.org", "u", "p", "T", "C")
 
 

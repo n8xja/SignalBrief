@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for your interest in improving Defensive Dispatch.
+Thanks for your interest in improving Signal Brief.
 
 ## Reporting bugs and requesting features
 
-Open an [issue](https://github.com/n8xja/DefensiveDispatch/issues) using the bug report or
+Open an [issue](https://github.com/n8xja/SignalBrief/issues) using the bug report or
 feature request template. For bugs, include the command you ran, the error output, and your
 Python version. **Never paste API keys, Application Passwords or your `.env` file.**
 
@@ -20,7 +20,7 @@ Python version. **Never paste API keys, Application Passwords or your `.env` fil
 4. Run the tests: `pytest -q`
    If you changed the Dockerfile or dependencies, also check the image builds and starts:
    ```bash
-   docker build -t defensive-dispatch . && docker run --rm defensive-dispatch --help
+   docker build -t signal-brief . && docker run --rm signal-brief --help
    ```
 5. Open a pull request describing what changed and why.
 

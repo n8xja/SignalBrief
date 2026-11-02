@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please **do not** open a public issue for security problems. Instead, use GitHub's
-[private vulnerability reporting](https://github.com/n8xja/DefensiveDispatch/security/advisories/new)
+[private vulnerability reporting](https://github.com/n8xja/SignalBrief/security/advisories/new)
 for this repository. Include a description, steps to reproduce, and the impact you expect.
 You should get a response within a few days.
 

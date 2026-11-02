@@ -5,7 +5,7 @@
 services:
   summarize:
     build: .
-    image: defensive-dispatch
+    image: signal-brief
     env_file: .env
     volumes:
       - ./pages:/data   # put saved pages here for --html-file

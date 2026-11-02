@@ -1,6 +1,6 @@
-# Defensive Dispatch – article summarizer
-# Build:  docker build -t defensive-dispatch .
-# Run:    docker run --rm --env-file .env defensive-dispatch https://example.com/article
+# Signal Brief – article curation and summarizer
+# Build:  docker build -t signal-brief .
+# Run:    docker run --rm --env-file .env signal-brief https://example.com/article
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -15,8 +15,8 @@ RUN pip install -r requirements.txt
 COPY summarize.py .
 
 # Run as an unprivileged user
-RUN useradd --create-home --uid 10001 dispatch
-USER dispatch
+RUN useradd --create-home --uid 10001 signalbrief
+USER signalbrief
 
 # Mount a folder here to use --html-file with saved pages
 WORKDIR /data

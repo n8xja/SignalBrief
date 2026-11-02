@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Defensive Dispatch: summarize one article URL and save it as a WordPress draft.
+"""Signal Brief: summarize one article URL and save it as a WordPress draft.
 
 Usage:
     python summarize.py https://example.com/article            # summarize + create draft
@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 DefensiveDispatch/1.0"
+    "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 SignalBrief/1.0"
 )
 DEFAULT_MODEL = "claude-sonnet-5-5"
 MAX_ARTICLE_CHARS = 60_000   # keeps very long pages within a sensible token budget
@@ -29,7 +29,7 @@ MIN_ARTICLE_WORDS = 100      # below this, extraction probably failed (paywall, 
 COPY_NGRAM = 8               # any 8-word run shared with the source counts as copied text
 MAX_ATTEMPTS = 2             # first try + one retry with feedback
 
-SYSTEM_PROMPT = """You are an analyst for Defensive Dispatch, a cybersecurity threat-intelligence publication.
+SYSTEM_PROMPT = """You are an analyst helping a cybersecurity threat-intelligence writer curate articles worth sharing.
 You will receive the text of one article. Produce:
 - working_title: a short, neutral working title in your own words (do not reuse the headline).
 - summary: 150-250 words in 1-3 paragraphs, in your own words.
@@ -58,7 +58,7 @@ SUMMARY_TOOL = {
 }
 
 
-class DispatchError(Exception):
+class BriefError(Exception):
     """An expected failure with a message meant for the user."""
 
 
@@ -68,12 +68,12 @@ def fetch_html(url: str) -> str:
     try:
         resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
     except requests.RequestException as exc:
-        raise DispatchError(f"Could not fetch {url}: {exc}") from exc
+        raise BriefError(f"Could not fetch {url}: {exc}") from exc
     if resp.status_code in (401, 402, 403):
-        raise DispatchError(f"The site refused the request (HTTP {resp.status_code}); it may be paywalled "
+        raise BriefError(f"The site refused the request (HTTP {resp.status_code}); it may be paywalled "
                             "or blocking scripts. Save the page from your browser and use --html-file.")
     if resp.status_code >= 400:
-        raise DispatchError(f"Fetching {url} failed with HTTP {resp.status_code}.")
+        raise BriefError(f"Fetching {url} failed with HTTP {resp.status_code}.")
     return resp.text
 
 
@@ -82,7 +82,7 @@ def extract_article(raw_html: str, url: str) -> dict:
                                include_tables=True, favor_precision=True)
     meta = trafilatura.extract_metadata(raw_html, default_url=url)
     if not text or len(text.split()) < MIN_ARTICLE_WORDS:
-        raise DispatchError("Could not find enough article text on the page (it may need JavaScript "
+        raise BriefError("Could not find enough article text on the page (it may need JavaScript "
                             "or be behind a paywall). Save the page and use --html-file.")
     return {
         "url": url,
@@ -150,7 +150,7 @@ def call_claude(client, model: str, article: dict, feedback: list[str] | None = 
     for block in resp.content:
         if block.type == "tool_use":
             return dict(block.input)
-    raise DispatchError("Claude did not return a structured summary.")
+    raise BriefError("Claude did not return a structured summary.")
 
 
 def summarize(client, model: str, article: dict) -> dict:
@@ -162,7 +162,7 @@ def summarize(client, model: str, article: dict) -> dict:
             result["key_points"] = [p.strip() for p in result["key_points"]]
             return result
         print(f"[attempt {attempt}] output needs fixing: {feedback}", file=sys.stderr)
-    raise DispatchError("Summary still failed checks after a retry: " + " | ".join(feedback))
+    raise BriefError("Summary still failed checks after a retry: " + " | ".join(feedback))
 
 
 # ---------------------------------------------------------------- WordPress
@@ -198,14 +198,14 @@ def create_wp_draft(wp_url: str, user: str, app_password: str, title: str, conte
         try:
             resp = requests.post(endpoint, auth=auth, json=payload, timeout=30)
         except requests.RequestException as exc:
-            raise DispatchError(f"Could not reach WordPress at {base}: {exc}") from exc
+            raise BriefError(f"Could not reach WordPress at {base}: {exc}") from exc
         if resp.status_code != 404:
             break
     if resp.status_code in (401, 403):
-        raise DispatchError(f"WordPress rejected the login (HTTP {resp.status_code}). Check WP_USER and "
+        raise BriefError(f"WordPress rejected the login (HTTP {resp.status_code}). Check WP_USER and "
                             "WP_APP_PASSWORD; see README troubleshooting if the credentials are correct.")
     if resp.status_code >= 400:
-        raise DispatchError(f"WordPress returned HTTP {resp.status_code}: {resp.text[:300]}")
+        raise BriefError(f"WordPress returned HTTP {resp.status_code}: {resp.text[:300]}")
     post_id = resp.json()["id"]
     return post_id, f"{base}/wp-admin/post.php?post={post_id}&action=edit"
 
@@ -215,7 +215,7 @@ def create_wp_draft(wp_url: str, user: str, app_password: str, title: str, conte
 def require_env(name: str) -> str:
     value = os.getenv(name, "").strip()
     if not value:
-        raise DispatchError(f"Missing setting {name}. Add it to your .env file (see .env.example).")
+        raise BriefError(f"Missing setting {name}. Add it to your .env file (see .env.example).")
     return value
 
 
@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
                 with open(args.html_file, encoding="utf-8", errors="replace") as fh:
                     raw = fh.read()
             except OSError as exc:
-                raise DispatchError(f"Could not read --html-file {args.html_file}: {exc.strerror}. "
+                raise BriefError(f"Could not read --html-file {args.html_file}: {exc.strerror}. "
                                     "Check the file name and, with Docker, that its folder is "
                                     "mounted at /data.") from exc
         else:
@@ -265,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
                                                  os.getenv("WP_CATEGORY_ID") or None)
             print(f"\nDraft created (post {post_id}): {edit_link}")
         return 0
-    except DispatchError as exc:
+    except BriefError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 

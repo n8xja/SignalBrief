@@ -1,18 +1,28 @@
-# Defensive Dispatch – Article Summarizer
+# Signal Brief
 
-[![Tests](https://github.com/n8xja/DefensiveDispatch/actions/workflows/tests.yml/badge.svg)](https://github.com/n8xja/DefensiveDispatch/actions/workflows/tests.yml)
+[![Tests](https://github.com/n8xja/SignalBrief/actions/workflows/tests.yml/badge.svg)](https://github.com/n8xja/SignalBrief/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Turn a threat-intelligence article into a ready-to-edit WordPress draft with one command.
+**Curate the articles your readers should know about, and make the write-up your own.**
 
-Give it a URL. It fetches the page, has [Claude](https://platform.claude.com) write a short
-summary and the **5 most important points** in its own words, and saves a **draft** post to
-your WordPress site. The post ends with a **Read more** link to the original article. Nothing
-is published until you review it.
+Signal Brief helps you pick out the important stories from the noise and share them
+responsibly. Give it the URL of an article worth passing on. It fetches the page, has
+[Claude](https://platform.claude.com) write a short summary and the **5 most important points**
+in its own words, and saves it as a **draft** post on your WordPress site.
 
-Built for [Defensive Dispatch](https://defensivedispatch.schliesser.org), but it works with any
-self-hosted WordPress site.
+The draft is a starting point, not a finished post: you edit it, add your own analysis and voice,
+and publish it when it's yours. Every post ends with a **Read more** link that sends readers to
+the original article.
+
+### Respecting the original authors
+
+- Summaries are written fresh. The tool rejects any output that copies an 8-word run from the
+  article and asks Claude to reword it.
+- Every draft credits and links to the source.
+- Nothing is published automatically, so you review every post before it goes live.
+
+Works with any self-hosted WordPress site.
 
 ---
 
@@ -58,8 +68,8 @@ URL ──► fetch page ──► extract article text ──► Claude: title 
 ## Installation
 
 ```bash
-git clone https://github.com/n8xja/DefensiveDispatch.git
-cd DefensiveDispatch
+git clone https://github.com/n8xja/SignalBrief.git
+cd SignalBrief
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -79,7 +89,7 @@ pip install -r requirements.txt
 | Variable | Required | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Yes | Your Claude API key |
-| `WP_URL` | Yes | Your site, e.g. `https://defensivedispatch.schliesser.org` |
+| `WP_URL` | Yes | Your site, e.g. `https://your-site.example.com` |
 | `WP_USER` | Yes | WordPress username |
 | `WP_APP_PASSWORD` | Yes | The Application Password (spaces are fine) |
 | `WP_CATEGORY_ID` | No | Numeric category ID for new drafts |
@@ -106,7 +116,7 @@ python summarize.py https://example.com/article --html-file saved-page.html
 On success, the last line shows the draft's edit link:
 
 ```
-Draft created (post 128): https://defensivedispatch.schliesser.org/wp-admin/post.php?post=128&action=edit
+Draft created (post 128): https://your-site.example.com/wp-admin/post.php?post=128&action=edit
 ```
 
 ## Running with Docker
@@ -119,24 +129,24 @@ No local Python needed.
 Quick start for Docker users. Build the image once:
 
 ```bash
-docker build -t defensive-dispatch .
+docker build -t signal-brief .
 ```
 
 Then run it with your `.env` file:
 
 ```bash
 # Preview
-docker run --rm --env-file .env defensive-dispatch https://example.com/article --dry-run
+docker run --rm --env-file .env signal-brief https://example.com/article --dry-run
 
 # Create the WordPress draft
-docker run --rm --env-file .env defensive-dispatch https://example.com/article
+docker run --rm --env-file .env signal-brief https://example.com/article
 ```
 
 To use a saved page, mount the folder that holds it at `/data`:
 
 ```bash
 docker run --rm --env-file .env -v "$PWD/pages:/data" \
-  defensive-dispatch https://example.com/article --html-file saved-page.html
+  signal-brief https://example.com/article --html-file saved-page.html
 ```
 
 Or with Docker Compose (reads `.env` and mounts `./pages` automatically):

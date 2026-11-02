@@ -28,13 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -t defensive-dispatch .
+        run: docker build -t signal-brief .
       - name: Smoke test
         run: |
-          docker run --rm defensive-dispatch --help
+          docker run --rm signal-brief --help
           # Without settings it must fail cleanly with a helpful message
-          out=$(docker run --rm defensive-dispatch https://example.com/a --dry-run 2>&1 || true)
+          out=$(docker run --rm signal-brief https://example.com/a --dry-run 2>&1 || true)
           echo "$out"
           echo "$out" | grep -q "Missing setting ANTHROPIC_API_KEY"
           # Must not run as root
-          test "$(docker run --rm --entrypoint id defensive-dispatch -u)" != "0"
+          test "$(docker run --rm --entrypoint id signal-brief -u)" != "0"

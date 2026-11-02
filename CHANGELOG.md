@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Project renamed to **Signal Brief** (repository `SignalBrief`, Docker image `signal-brief`).
+- README introduction rewritten around curation and respect for the original authors.
+- Site-specific URLs replaced with generic examples.
+
 ### Added
 - Dockerfile (non-root, Python 3.12 slim), `.dockerignore` and `docker-compose.yml`.
 - CI job that builds and smoke-tests the Docker image.
