@@ -126,8 +126,39 @@ administrator) to create its Application Password.
 | `WP_APP_PASSWORD` | Yes | The Application Password (spaces are fine) |
 | `WP_CATEGORY_ID` | No | Numeric category ID for new drafts |
 | `CLAUDE_MODEL` | No | Model to use (default `claude-sonnet-5-5`) |
+| `EDITORIAL_BRIEF` | No | Your publication's mission statement, used to guide how Claude writes. See [Editorial brief](#editorial-brief). |
 
 > `.env` is listed in `.gitignore`. Never commit it.
+
+## Editorial brief
+
+Signal Brief writes for **business leaders**, not security specialists. Every draft is guided by an
+editorial brief. The built-in one is:
+
+> This publication delivers hand-picked cybersecurity insights and intelligence tailored for
+> business leaders. We cut through the noise to show what actually matters: why specific threats
+> deserve attention, what they mean for an organization, and what defensive actions to consider.
+
+From that brief, Claude:
+
+- writes in plain language, leading with business meaning (risk, exposure, operations, customers,
+  cost) and briefly explaining any technical term it needs
+- shapes the **BLUF** around why the threat deserves attention, what it means for an organization,
+  and the key action to consider
+- orders the **5 key points** for a business reader: what is happening and why it matters, what it
+  means for an organization, then at least two **defensive actions to consider**, each starting
+  with a verb
+- takes facts (who, what, when, versions) only from the article, while implications and actions
+  may be general, sensible guidance
+
+**Use your own brief.** Put your publication's statement in `.env` on one line (quotes are optional):
+
+```ini
+EDITORIAL_BRIEF="Your Publication delivers hand-picked cybersecurity insights for business leaders. We show why specific threats deserve attention, what they mean for your organization, and what defensive actions to consider."
+```
+
+Your brief replaces the built-in one, and the plain-language and key-point guidance above still
+applies.
 
 ## Usage
 

@@ -42,20 +42,51 @@ SHORT_ARTICLE_WORDS = 400    # below this, warn and ask for a shorter summary
 COPY_NGRAM = 8               # any 8-word run shared with the source counts as copied text
 MAX_ATTEMPTS = 2             # first try + one retry with feedback
 
-SYSTEM_PROMPT = """You are an analyst helping a cybersecurity threat-intelligence writer curate articles worth sharing.
+# The editorial brief sets the audience and angle. Override it with EDITORIAL_BRIEF in .env.
+DEFAULT_EDITORIAL_BRIEF = (
+    "This publication delivers hand-picked cybersecurity insights and intelligence tailored for "
+    "business leaders. We cut through the noise to show what actually matters: why specific threats "
+    "deserve attention, what they mean for an organization, and what defensive actions to consider."
+)
+
+SYSTEM_PROMPT_TEMPLATE = """You help a cybersecurity writer curate articles worth sharing with their readers.
+
+Editorial brief (let this guide everything you write):
+{brief}
+
+Your readers are business leaders, not security specialists. Write in plain, direct language.
+Lead with business meaning (risk, exposure, operations, customers, cost) rather than technical
+mechanics. When a technical term is needed, explain it in a few words. Be calm and factual: no hype.
+
 You will receive the text of one article. Produce:
-- working_title: a short, neutral working title in your own words (do not reuse the headline).
+- working_title: a short title in your own words that tells a business leader why this matters
+  (do not reuse the headline).
 - bluf: the Bottom Line Up Front. 2 or 3 concise sentences (at most about 70 words) in one paragraph,
-  in your own words: what happened, who is affected, and what defenders should do.
-- key_points: exactly 5 bullets with the most important takeaways for security defenders.
-  Each is one sentence of at most about 30 words.
+  in your own words: why this threat deserves attention, what it means for an organization, and the
+  key action to consider.
+- key_points: exactly 5 bullets, ordered for a business reader:
+  1-2 explain what is happening and why it deserves attention,
+  1-2 explain what it means for an organization (who is exposed, likely impact),
+  at least 2 are defensive actions to consider, each starting with a verb
+  (for example "Confirm...", "Ask your IT team...", "Prioritize...").
+  Each bullet is one sentence of at most about 30 words.
 
 Rules:
 - Write everything in your own words. Do not copy sentences or distinctive phrases from the
   article, and do not quote it.
 - Keep technical identifiers exact: CVE IDs, product names, versions, threat actor and malware names.
-- Only state what the article supports; do not add outside facts.
+- Facts (who, what, when, how many, which versions) must come from the article; do not add outside
+  facts. Business implications and defensive actions may be general, sensible guidance that follows
+  from those facts.
 Respond with the JSON object only."""
+
+
+def build_system_prompt(brief: str | None = None) -> str:
+    brief = (brief or "").strip()
+    if len(brief) >= 2 and brief[0] == brief[-1] and brief[0] in "\"'":
+        brief = brief[1:-1].strip()   # docker --env-file keeps surrounding quotes
+    return SYSTEM_PROMPT_TEMPLATE.format(brief=brief or DEFAULT_EDITORIAL_BRIEF)
+
 
 # JSON outputs (output_config.format) guarantee the response matches this schema.
 # The exact bullet count is enforced by validate(), not the schema.
@@ -224,7 +255,8 @@ def validate(result: dict, article: dict) -> list[str]:
 
 # ---------------------------------------------------------------- Claude
 
-def call_claude(client, model: str, article: dict, feedback: list[str] | None = None) -> dict:
+def call_claude(client, model: str, article: dict, feedback: list[str] | None = None,
+                brief: str | None = None) -> dict:
     import anthropic
 
     prompt = (f"Article title: {article['title']}\nURL: {article['url']}\n\n"
@@ -236,7 +268,7 @@ def call_claude(client, model: str, article: dict, feedback: list[str] | None = 
         resp = client.messages.create(
             model=model,
             max_tokens=4000,
-            system=SYSTEM_PROMPT,
+            system=build_system_prompt(brief),
             output_config={"format": {"type": "json_schema", "schema": SUMMARY_SCHEMA}},
             messages=[{"role": "user", "content": prompt}],
         )
@@ -264,10 +296,10 @@ def call_claude(client, model: str, article: dict, feedback: list[str] | None = 
         raise BriefError("Claude did not return a valid structured summary.") from exc
 
 
-def summarize(client, model: str, article: dict) -> dict:
+def summarize(client, model: str, article: dict, brief: str | None = None) -> dict:
     feedback = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        result = call_claude(client, model, article, feedback)
+        result = call_claude(client, model, article, feedback, brief)
         feedback = validate(result, article)
         if not feedback:
             result["key_points"] = [p.strip() for p in result["key_points"]]
@@ -426,7 +458,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Fetched: {article['title']} ({len(article['text'].split())} words)", file=sys.stderr)
 
         model = os.getenv("CLAUDE_MODEL", DEFAULT_MODEL)
-        result = summarize(Anthropic(api_key=api_key), model, article)
+        result = summarize(Anthropic(api_key=api_key), model, article, os.getenv("EDITORIAL_BRIEF"))
 
         if args.json:
             print(json.dumps({"source": {"url": article["url"], "title": article["title"]}, **result}, indent=2))

@@ -16,6 +16,8 @@ All notable changes to this project are documented here. The format follows
   recommended dedicated-user setup.
 
 ### Added
+- Editorial brief: drafts are written for business leaders (why the threat matters, what it means
+  for an organization, which defensive actions to consider). Override it with `EDITORIAL_BRIEF`.
 - `--check-wp` tests the WordPress login and role without needing an article or Claude key.
 - `--text-file` (with optional `--title`) to summarize article text copied into a plain-text file.
 - Dockerfile (non-root, Python 3.12 slim), `.dockerignore` and `docker-compose.yml`.

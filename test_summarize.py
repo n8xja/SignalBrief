@@ -230,3 +230,25 @@ def test_post_has_bluf_heading_first():
     first, second = out.split("\n\n")[:2]
     assert "BLUF: Bottom Line Up Front" in first and "wp:heading" in first
     assert GOOD["bluf"].split(",")[0].replace("'", "&#x27;") in second
+
+
+def test_default_brief_targets_business_leaders():
+    prompt = s.build_system_prompt()
+    assert "business leaders" in prompt and "defensive actions" in prompt
+
+
+def test_custom_brief_is_used(monkeypatch):
+    client = fake_client(GOOD)
+    s.summarize(client, "m", ARTICLE, brief="Acme Weekly writes for hospital CIOs.")
+    system = client.messages.create.call_args.kwargs["system"]
+    assert "Acme Weekly writes for hospital CIOs." in system
+    assert s.DEFAULT_EDITORIAL_BRIEF not in system
+
+
+def test_blank_brief_falls_back_to_default():
+    assert s.DEFAULT_EDITORIAL_BRIEF in s.build_system_prompt("   ")
+
+
+def test_quoted_brief_from_docker_env_file_is_unquoted():
+    prompt = s.build_system_prompt('"Acme writes for CFOs."')
+    assert "Acme writes for CFOs." in prompt and '"Acme writes for CFOs."' not in prompt
