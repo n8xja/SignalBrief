@@ -361,6 +361,34 @@ Notes:
 
 ---
 
+### Or: use copied article text
+
+If the tool says `Only N words of article text were found` and the article is clearly longer, or a
+saved page doesn't work, give it the text directly:
+
+1. On the article page, select the article text from the headline to the end (click before the
+   headline, then **Shift+click** after the last paragraph) and copy it (**Cmd+C** / **Ctrl+C**).
+2. Paste it into a new plain-text file named `article.txt` in the `pages` folder:
+   - **Mac:** in Terminal, run `pbpaste > pages/article.txt` right after copying.
+   - **Windows:** open Notepad, paste, and save as `article.txt` in the `pages` folder.
+   - **Linux:** paste into any text editor and save as `pages/article.txt`.
+3. Make sure the headline is on the first line (or add `--title "The headline"` to the command).
+4. Run:
+
+**macOS (Terminal) / Linux**
+
+```bash
+docker run --rm --env-file .env -v "$PWD/pages:/data" signal-brief https://example.com/article --text-file article.txt --dry-run
+```
+
+**Windows (PowerShell)**
+
+```powershell
+docker run --rm --env-file .env -v "${PWD}\pages:/data" signal-brief https://example.com/article --text-file article.txt --dry-run
+```
+
+---
+
 ## 10. Optional: use Docker Compose
 
 Docker Compose comes with Docker Desktop (and with the Linux install script above). It reads the
@@ -477,6 +505,14 @@ menu bar.
    docker run --rm --env-file .env -v "$PWD/pages:/data" signal-brief https://example.com/article --html-file article.html --dry-run
    ```
    Remove `--dry-run` to create the draft.
+5. If it warns that only a few words were found, copy the article text instead. Select the article
+   in the browser, press **Cmd+C**, then run:
+   ```bash
+   pbpaste > pages/article.txt
+   ```
+   ```bash
+   docker run --rm --env-file .env -v "$PWD/pages:/data" signal-brief https://example.com/article --text-file article.txt --dry-run
+   ```
 
 ### After updating the project
 
@@ -504,7 +540,9 @@ If you downloaded the ZIP, download it again, copy your `.env` into the new fold
 | `open .env: no such file or directory` | You're not in the project folder, or `.env` hasn't been created. Do step 5 from the project folder. On Windows, make sure Notepad didn't save it as `.env.txt`: run `dir` to check, and `Rename-Item .env.txt .env` if needed. |
 | `Error: Missing setting ANTHROPIC_API_KEY` (or another setting) | That line is missing or empty in `.env`, or you forgot `--env-file .env`. |
 | `Error: WordPress rejected the login (HTTP 401)` | Check `WP_USER` and `WP_APP_PASSWORD`. If they're right and your site is on AWS Lightsail (Bitnami), see the Lightsail fix in the [README troubleshooting](../README.md#troubleshooting). |
-| `Error: Could not find enough article text` or `The site refused the request` | The site blocks automated tools or needs JavaScript. Use a saved page (step 9). |
+| `Error: Could not find enough article text` or `The site refused the request` | The site blocks automated tools or needs JavaScript. Use a saved page or copied text (step 9). |
+| `[warning] Only N words of article text were found` | Part of the article was missed. If the article is longer, use copied text with `--text-file` (step 9). |
+| `The Claude API rejected the key`, `Model ... was not found`, or `out of credit` | See the [README troubleshooting](../README.md#troubleshooting) table. |
 | `Error: The site did not respond in time` (or `Read timed out`) | The site's bot protection is stalling the request rather than refusing it. This isn't a Docker problem. Use a saved page (step 9). |
 | `Error: Could not read --html-file` / file not found | The saved page isn't in the `pages` folder, the name doesn't match, or the `-v` part is missing. |
 | Build fails while downloading (`TLS`, `timeout`, `connection reset`) | A network or proxy problem. Check your internet connection and try again. On a work network, ask IT whether Docker Hub (`registry-1.docker.io`) is allowed. |

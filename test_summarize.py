@@ -1,4 +1,5 @@
 """Offline tests: no network, Claude and WordPress are stubbed."""
+import json
 from types import SimpleNamespace
 from unittest import mock
 
@@ -23,7 +24,9 @@ GOOD = {
 
 
 def fake_client(*results):
-    responses = [SimpleNamespace(content=[SimpleNamespace(type="tool_use", input=r)]) for r in results]
+    responses = [SimpleNamespace(stop_reason="end_turn",
+                                 content=[SimpleNamespace(type="text", text=json.dumps(r))])
+                 for r in results]
     client = mock.Mock()
     client.messages.create.side_effect = responses
     return client
@@ -134,3 +137,48 @@ def test_fetch_timeout_gives_html_file_hint():
     with mock.patch.object(s.requests, "get", side_effect=s.requests.Timeout("slow")):
         with pytest.raises(s.BriefError, match="--html-file"):
             s.fetch_html("https://example.com/a")
+
+
+def test_request_uses_json_outputs_not_forced_tool():
+    client = fake_client(GOOD)
+    s.summarize(client, "m", ARTICLE)
+    kwargs = client.messages.create.call_args.kwargs
+    assert kwargs["output_config"]["format"]["type"] == "json_schema"
+    assert "tool_choice" not in kwargs and "tools" not in kwargs
+
+
+def test_api_error_becomes_clean_message():
+    import anthropic
+    err = anthropic.NotFoundError("not found", body=None,
+                                  response=mock.Mock(status_code=404, headers={}))
+    client = mock.Mock()
+    client.messages.create.side_effect = err
+    with pytest.raises(s.BriefError, match="was not found"):
+        s.summarize(client, "bad-model", ARTICLE)
+
+
+def test_jsonld_article_body_used_when_longer():
+    body = "Defenders should patch the gateway now. " * 80
+    page = ("<html><head><title>T</title><script type='application/ld+json'>"
+            + json.dumps({"@type": "BlogPosting", "articleBody": body})
+            + "</script></head><body><article><p>Short teaser paragraph only.</p></article></body></html>")
+    art = s.extract_article(page, "https://example.com/t")
+    assert len(art["text"].split()) > 400
+
+
+def test_text_file_first_line_is_title():
+    art = s.article_from_text("My Headline\n\n" + ARTICLE_TEXT, "https://example.com/a")
+    assert art["title"] == "My Headline"
+    assert "CVE-2026-12345" in art["text"]
+
+
+def test_text_file_title_override():
+    art = s.article_from_text(ARTICLE_TEXT, "https://example.com/a", title="Given")
+    assert art["title"] == "Given" and art["text"].startswith("Researchers")
+
+
+def test_short_article_gets_shorter_summary_target(capsys):
+    assert s.summary_range({"text": "word " * 200}) == (50, 150)
+    assert s.summary_range({"text": "word " * 1000}) == (150, 250)
+    s.article_from_text("T\n" + "word " * 200, "https://e.com")
+    assert "Only 200 words" in capsys.readouterr().err

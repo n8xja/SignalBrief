@@ -142,7 +142,21 @@ python summarize.py https://example.com/article --dry-run --json
 
 # Use a saved copy of the page (for sites that block scripts or need JavaScript)
 python summarize.py https://example.com/article --html-file saved-page.html
+
+# Use the article text copied into a plain-text file (first line = headline)
+python summarize.py https://example.com/article --text-file article.txt
 ```
+
+Always pass the article's real URL, even with `--html-file` or `--text-file`: it's used for the
+**Read more** link.
+
+### Choosing how the article is read
+
+| Option | When to use it |
+|---|---|
+| *(none)* | Normal case: the tool downloads the page itself. |
+| `--html-file` | The site blocks the tool or times out. Save the page from your browser first. |
+| `--text-file` | The tool finds only part of the article (it warns `Only N words of article text were found`), or a saved page doesn't work. Select the article text in your browser, copy it, and paste it into a plain-text file. Put the headline on the first line, or pass `--title "Headline"`. |
 
 On success, the last line shows the draft's edit link:
 
@@ -197,10 +211,14 @@ so your keys are never baked into the image.
 |---|---|
 | `WordPress rejected the login (HTTP 401)` even with correct credentials | Some Apache setups, including Bitnami WordPress on AWS Lightsail, drop the `Authorization` header. Add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess` or the Apache vhost config, then restart Apache (`sudo /opt/bitnami/ctlscript.sh restart apache`). |
 | `HTTP 403` from WordPress | The user's role may be too low: it needs **Contributor** or higher (a Subscriber can't create posts). Otherwise, a security plugin (Wordfence, Solid Security, etc.) may be blocking the REST API or Application Passwords. Allow them in the plugin settings. |
-| `Could not find enough article text` | The page is JavaScript-rendered or paywalled. Save it from your browser and use `--html-file`. |
+| `Could not find enough article text` | The page is JavaScript-rendered or paywalled. Copy the article text into a file and use `--text-file`. |
+| `[warning] Only N words of article text were found` | Part of the article was missed, which is common on pages that load content with JavaScript. If the article is longer than that, use `--text-file`. Short articles get a shorter summary automatically. |
 | `The site refused the request` | The site blocks scripts. Use `--html-file`. |
 | `The site did not respond in time` (or `Read timed out`) | Some large sites, often behind Akamai or Cloudflare bot protection, quietly stall automated requests instead of refusing them. The tool sends browser-style headers and retries once, but some sites still block it. Use `--html-file` with a saved copy of the page. |
 | `Missing setting ...` | A required value is missing from `.env`. |
+| `The Claude API rejected the key (HTTP 401)` | `ANTHROPIC_API_KEY` is wrong or was revoked. Create a new key at platform.claude.com. |
+| `Model '...' was not found` | `CLAUDE_MODEL` in `.env` has a typo or names a retired model. Remove the line to use the default. |
+| `rate limit was reached, or the account is out of credit` | Wait a minute and retry, or add credit under **Billing** at platform.claude.com. |
 
 ## Development
 

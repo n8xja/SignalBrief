@@ -38,13 +38,14 @@ FETCH_ATTEMPTS = 2
 DEFAULT_MODEL = "claude-sonnet-5-5"
 MAX_ARTICLE_CHARS = 60_000   # keeps very long pages within a sensible token budget
 MIN_ARTICLE_WORDS = 100      # below this, extraction probably failed (paywall, JS-only page)
+SHORT_ARTICLE_WORDS = 400    # below this, warn and ask for a shorter summary
 COPY_NGRAM = 8               # any 8-word run shared with the source counts as copied text
 MAX_ATTEMPTS = 2             # first try + one retry with feedback
 
 SYSTEM_PROMPT = """You are an analyst helping a cybersecurity threat-intelligence writer curate articles worth sharing.
 You will receive the text of one article. Produce:
 - working_title: a short, neutral working title in your own words (do not reuse the headline).
-- summary: 150-250 words in 1-3 paragraphs, in your own words.
+- summary: in your own words, 1-3 paragraphs separated by blank lines, at the length given in the request.
 - key_points: exactly 5 bullets with the most important takeaways for security defenders.
   Each is one sentence of at most about 30 words.
 
@@ -53,20 +54,19 @@ Rules:
   article, and do not quote it.
 - Keep technical identifiers exact: CVE IDs, product names, versions, threat actor and malware names.
 - Only state what the article supports; do not add outside facts.
-Return the result by calling the save_summary tool."""
+Respond with the JSON object only."""
 
-SUMMARY_TOOL = {
-    "name": "save_summary",
-    "description": "Save the working title, summary and five key points for the article.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "working_title": {"type": "string"},
-            "summary": {"type": "string", "description": "150-250 words, paragraphs separated by blank lines"},
-            "key_points": {"type": "array", "items": {"type": "string"}, "minItems": 5, "maxItems": 5},
-        },
-        "required": ["working_title", "summary", "key_points"],
+# JSON outputs (output_config.format) guarantee the response matches this schema.
+# The exact bullet count is enforced by validate(), not the schema.
+SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "working_title": {"type": "string"},
+        "summary": {"type": "string"},
+        "key_points": {"type": "array", "items": {"type": "string"}},
     },
+    "required": ["working_title", "summary", "key_points"],
+    "additionalProperties": False,
 }
 
 
@@ -105,18 +105,72 @@ def fetch_html(url: str) -> str:
     return resp.text
 
 
+def _jsonld_article_body(raw_html: str) -> str:
+    """Return the longest articleBody found in the page's JSON-LD metadata, if any."""
+    best = ""
+
+    def walk(node):
+        nonlocal best
+        if isinstance(node, dict):
+            body = node.get("articleBody")
+            if isinstance(body, str) and len(body) > len(best):
+                best = body
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', raw_html,
+                            flags=re.S | re.I):
+        try:
+            walk(json.loads(block.strip()))
+        except ValueError:
+            continue
+    return html.unescape(re.sub(r"<[^>]+>", " ", best)).strip()
+
+
+def _check_length(article: dict) -> dict:
+    words = len(article["text"].split())
+    if words < MIN_ARTICLE_WORDS:
+        raise BriefError("Could not find enough article text (it may need JavaScript or be behind a "
+                         "paywall). Copy the article text into a file and use --text-file instead.")
+    if words < SHORT_ARTICLE_WORDS:
+        print(f"[warning] Only {words} words of article text were found. If the article is longer, "
+              "part of it was missed: copy the text into a file and use --text-file.", file=sys.stderr)
+    article["text"] = article["text"][:MAX_ARTICLE_CHARS]
+    return article
+
+
 def extract_article(raw_html: str, url: str) -> dict:
-    text = trafilatura.extract(raw_html, url=url, include_comments=False,
-                               include_tables=True, favor_precision=True)
+    """Extract the article text, trying several methods and keeping the longest result."""
+    candidates = [
+        trafilatura.extract(raw_html, url=url, include_comments=False, include_tables=True,
+                            favor_precision=True),
+        trafilatura.extract(raw_html, url=url, include_comments=False, include_tables=True,
+                            favor_recall=True),
+        _jsonld_article_body(raw_html),
+    ]
+    text = max((c for c in candidates if c), key=lambda c: len(c.split()), default="")
     meta = trafilatura.extract_metadata(raw_html, default_url=url)
-    if not text or len(text.split()) < MIN_ARTICLE_WORDS:
-        raise BriefError("Could not find enough article text on the page (it may need JavaScript "
-                            "or be behind a paywall). Save the page and use --html-file.")
-    return {
+    return _check_length({
         "url": url,
         "title": (meta.title if meta and meta.title else url).strip(),
-        "text": text[:MAX_ARTICLE_CHARS],
-    }
+        "text": text,
+    })
+
+
+def article_from_text(raw_text: str, url: str, title: str | None = None) -> dict:
+    """Build an article from pasted plain text. The first line is the headline unless --title is given."""
+    lines = [line.strip() for line in raw_text.strip().splitlines()]
+    if not title and lines:
+        title, lines = lines[0], lines[1:]
+    return _check_length({"url": url, "title": title or url, "text": "\n".join(lines).strip()})
+
+
+def summary_range(article: dict) -> tuple[int, int]:
+    """Target summary length in words: shorter for short articles."""
+    return (50, 150) if len(article["text"].split()) < SHORT_ARTICLE_WORDS else (150, 250)
 
 
 # ---------------------------------------------------------------- validation
@@ -147,8 +201,9 @@ def validate(result: dict, article: dict) -> list[str]:
         problems.append(f"Provide exactly 5 key points (got {len(points)}).")
     summary = result.get("summary", "").strip()
     word_count = len(summary.split())
-    if not 100 <= word_count <= 300:
-        problems.append(f"Summary should be 150-250 words (got {word_count}).")
+    lo, hi = summary_range(article)
+    if not int(lo * 0.7) <= word_count <= int(hi * 1.2):
+        problems.append(f"Summary should be {lo}-{hi} words (got {word_count}).")
     if not result.get("working_title", "").strip():
         problems.append("Provide a working title.")
     all_text = " ".join([result.get("working_title", ""), summary, *points])
@@ -162,23 +217,45 @@ def validate(result: dict, article: dict) -> list[str]:
 # ---------------------------------------------------------------- Claude
 
 def call_claude(client, model: str, article: dict, feedback: list[str] | None = None) -> dict:
-    prompt = (f"Article title: {article['title']}\nURL: {article['url']}\n\n"
+    import anthropic
+
+    lo, hi = summary_range(article)
+    prompt = (f"Write the summary in {lo}-{hi} words.\n\n"
+              f"Article title: {article['title']}\nURL: {article['url']}\n\n"
               f"<article>\n{article['text']}\n</article>")
     if feedback:
         prompt += ("\n\nYour previous attempt had these problems. Fix all of them:\n- "
                    + "\n- ".join(feedback))
-    resp = client.messages.create(
-        model=model,
-        max_tokens=2000,
-        system=SYSTEM_PROMPT,
-        tools=[SUMMARY_TOOL],
-        tool_choice={"type": "tool", "name": "save_summary"},
-        messages=[{"role": "user", "content": prompt}],
-    )
-    for block in resp.content:
-        if block.type == "tool_use":
-            return dict(block.input)
-    raise BriefError("Claude did not return a structured summary.")
+    try:
+        resp = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            system=SYSTEM_PROMPT,
+            output_config={"format": {"type": "json_schema", "schema": SUMMARY_SCHEMA}},
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except anthropic.AuthenticationError as exc:
+        raise BriefError("The Claude API rejected the key (HTTP 401). Check ANTHROPIC_API_KEY.") from exc
+    except anthropic.NotFoundError as exc:
+        raise BriefError(f"Model '{model}' was not found. Check CLAUDE_MODEL in .env, or remove it to "
+                         f"use the default ({DEFAULT_MODEL}).") from exc
+    except anthropic.RateLimitError as exc:
+        raise BriefError("The Claude API rate limit was reached, or the account is out of credit. "
+                         "Wait a minute and try again, or check billing at platform.claude.com.") from exc
+    except anthropic.APIStatusError as exc:
+        raise BriefError(f"The Claude API returned an error (HTTP {exc.status_code}): {exc.message}") from exc
+    except anthropic.APIConnectionError as exc:
+        raise BriefError(f"Could not reach the Claude API. Check your internet connection. ({exc})") from exc
+
+    if resp.stop_reason == "refusal":
+        raise BriefError("Claude declined to summarize this article.")
+    if resp.stop_reason == "max_tokens":
+        raise BriefError("Claude's response was cut off before it finished. Try again.")
+    text = "".join(block.text for block in resp.content if block.type == "text")
+    try:
+        return json.loads(text)
+    except ValueError as exc:
+        raise BriefError("Claude did not return a valid structured summary.") from exc
 
 
 def summarize(client, model: str, article: dict) -> dict:
@@ -243,6 +320,15 @@ def create_wp_draft(wp_url: str, user: str, app_password: str, title: str, conte
 
 # ---------------------------------------------------------------- CLI
 
+def read_local_file(path: str, option: str) -> str:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError as exc:
+        raise BriefError(f"Could not read {option} {path}: {exc.strerror}. Check the file name and, "
+                         "with Docker, that its folder is mounted at /data.") from exc
+
+
 def require_env(name: str) -> str:
     value = os.getenv(name, "").strip()
     if not value:
@@ -255,7 +341,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Summarize an article and save it as a WordPress draft.")
     parser.add_argument("url", help="URL of the article")
     parser.add_argument("--dry-run", action="store_true", help="print the summary; do not post to WordPress")
-    parser.add_argument("--html-file", help="use a saved copy of the page instead of fetching it")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--html-file", help="use a saved copy of the page instead of fetching it")
+    source.add_argument("--text-file", help="use the article text copied into a plain-text file "
+                        "(first line = headline)")
+    parser.add_argument("--title", help="headline to use with --text-file")
     parser.add_argument("--json", action="store_true", help="print the result as JSON")
     args = parser.parse_args(argv)
 
@@ -265,17 +355,12 @@ def main(argv: list[str] | None = None) -> int:
         if not args.dry_run:  # fail fast before spending an API call
             wp = {k: require_env(k) for k in ("WP_URL", "WP_USER", "WP_APP_PASSWORD")}
 
-        if args.html_file:
-            try:
-                with open(args.html_file, encoding="utf-8", errors="replace") as fh:
-                    raw = fh.read()
-            except OSError as exc:
-                raise BriefError(f"Could not read --html-file {args.html_file}: {exc.strerror}. "
-                                    "Check the file name and, with Docker, that its folder is "
-                                    "mounted at /data.") from exc
+        if args.text_file:
+            article = article_from_text(read_local_file(args.text_file, "--text-file"), args.url, args.title)
+        elif args.html_file:
+            article = extract_article(read_local_file(args.html_file, "--html-file"), args.url)
         else:
-            raw = fetch_html(args.url)
-        article = extract_article(raw, args.url)
+            article = extract_article(fetch_html(args.url), args.url)
         print(f"Fetched: {article['title']} ({len(article['text'].split())} words)", file=sys.stderr)
 
         model = os.getenv("CLAUDE_MODEL", DEFAULT_MODEL)
