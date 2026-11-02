@@ -323,8 +323,8 @@ def build_post_content(result: dict, article: dict) -> str:
                       for p in result["key_points"])
     blocks.append(f'<!-- wp:list -->\n<ul class="wp-block-list">\n{items}\n</ul>\n<!-- /wp:list -->')
     link = (f'<a href="{esc(article["url"], quote=True)}" target="_blank" rel="noopener noreferrer">'
-            f'{esc(article["title"])}</a>')
-    blocks.append(f"<!-- wp:paragraph -->\n<p><strong>Read more:</strong> {link}</p>\n<!-- /wp:paragraph -->")
+            'Read more</a>')
+    blocks.append(f"<!-- wp:paragraph -->\n<p>{link}</p>\n<!-- /wp:paragraph -->")
     return "\n\n".join(blocks)
 
 
@@ -466,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{result['working_title']}\n\n{BLUF_HEADING}\n{result['bluf']}\n\nKey Points")
             for p in result["key_points"]:
                 print(f"  • {p}")
-            print(f"\nRead more: {article['title']} <{article['url']}>")
+            print(f"\nRead more <{article['url']}>")
 
         if not args.dry_run:
             content = build_post_content(result, article)

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- The link at the end of each draft now uses "Read more" as the link text instead of the original
+  article's headline.
 - The summary is now a **BLUF: Bottom Line Up Front**: 2 or 3 concise sentences (checked: at most
   3 sentences and about 90 words), shown under its own heading at the top of the draft. The JSON
   output field is now `bluf` instead of `summary`.

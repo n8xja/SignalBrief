@@ -1,5 +1,6 @@
 """Offline tests: no network, Claude and WordPress are stubbed."""
 import json
+import re
 from types import SimpleNamespace
 from unittest import mock
 
@@ -71,9 +72,9 @@ def test_post_content_structure_and_escaping():
     assert "Key Points" in html_out
     assert html_out.rstrip().endswith("<!-- /wp:paragraph -->")
     last_block = html_out.split("\n\n")[-1]
-    assert "Read more:" in last_block
     assert 'href="https://example.com/a?x=1&amp;y=2"' in last_block
-    assert "Acme VPN &lt;flaw&gt;" in last_block
+    assert re.search(r'<a [^>]*>Read more</a>', last_block)
+    assert "Acme VPN" not in last_block
 
 
 def wp_resp(status, body=None):

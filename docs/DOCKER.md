@@ -290,7 +290,7 @@ Key Points
   • Point four
   • Point five
 
-Read more: Article headline <https://example.com/article>
+Read more <https://example.com/article>
 ```
 
 ---

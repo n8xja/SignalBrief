@@ -45,7 +45,7 @@ URL ──► fetch page ──► extract article text ──► Claude: title 
 | Title | A working title written by Claude, ready for you to edit |
 | **BLUF: Bottom Line Up Front** | 2 or 3 concise sentences (about 70 words at most): what happened, who is affected, and what defenders should do |
 | Key Points | Exactly 5 bullets aimed at security defenders |
-| Read more | Link to the original article (opens in a new tab) |
+| Read more | The words "Read more", linked to the original article (opens in a new tab) |
 
 ### Built-in checks
 
