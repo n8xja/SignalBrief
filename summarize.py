@@ -19,10 +19,22 @@ import requests
 import trafilatura
 from dotenv import load_dotenv
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 SignalBrief/1.0"
-)
+# Many sites (especially behind Akamai or Cloudflare) silently stall requests that don't look
+# like a normal browser, which shows up as a read timeout. Send the usual browser headers.
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+}
+FETCH_TIMEOUT = (10, 45)     # seconds: (connect, read)
+FETCH_ATTEMPTS = 2
 DEFAULT_MODEL = "claude-sonnet-5-5"
 MAX_ARTICLE_CHARS = 60_000   # keeps very long pages within a sensible token budget
 MIN_ARTICLE_WORDS = 100      # below this, extraction probably failed (paywall, JS-only page)
@@ -64,14 +76,30 @@ class BriefError(Exception):
 
 # ---------------------------------------------------------------- fetch + extract
 
+SAVE_PAGE_HINT = ("Save the page from your browser (Ctrl+S / Cmd+S, 'Webpage, HTML only') and run "
+                  "again with --html-file. See README troubleshooting.")
+
+
 def fetch_html(url: str) -> str:
-    try:
-        resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
-    except requests.RequestException as exc:
-        raise BriefError(f"Could not fetch {url}: {exc}") from exc
-    if resp.status_code in (401, 402, 403):
+    resp = None
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            resp = requests.get(url, headers=BROWSER_HEADERS, timeout=FETCH_TIMEOUT)
+            break
+        except requests.Timeout as exc:
+            if attempt < FETCH_ATTEMPTS:
+                print(f"[fetch] timed out, retrying ({attempt}/{FETCH_ATTEMPTS - 1})...", file=sys.stderr)
+                continue
+            raise BriefError(f"The site did not respond in time ({url}). It is probably blocking "
+                             f"automated requests. {SAVE_PAGE_HINT}") from exc
+        except requests.ConnectionError as exc:
+            raise BriefError(f"Could not connect to the site ({url}). Check the URL and your internet "
+                             f"connection. Details: {exc}") from exc
+        except requests.RequestException as exc:
+            raise BriefError(f"Could not fetch {url}: {exc}") from exc
+    if resp.status_code == 429 or resp.status_code in (401, 402, 403):
         raise BriefError(f"The site refused the request (HTTP {resp.status_code}); it may be paywalled "
-                            "or blocking scripts. Save the page from your browser and use --html-file.")
+                         f"or blocking automated requests. {SAVE_PAGE_HINT}")
     if resp.status_code >= 400:
         raise BriefError(f"Fetching {url} failed with HTTP {resp.status_code}.")
     return resp.text

@@ -19,6 +19,9 @@ All notable changes to this project are documented here. The format follows
 - Step-by-step beginner's Docker guide (`docs/DOCKER.md`).
 
 ### Fixed
+- Page fetching now sends standard browser headers, uses separate connect/read timeouts and
+  retries once on a timeout. This fixes read timeouts from sites that stall non-browser requests.
+  If a site still blocks it, the error now explains how to use `--html-file`.
 - A missing `--html-file` now prints a clear error instead of a Python traceback.
 
 ## [0.1.0] - 2026-11-02

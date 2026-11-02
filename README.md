@@ -198,6 +198,7 @@ so your keys are never baked into the image.
 | `HTTP 403` from WordPress | The user's role may be too low: it needs **Contributor** or higher (a Subscriber can't create posts). Otherwise, a security plugin (Wordfence, Solid Security, etc.) may be blocking the REST API or Application Passwords. Allow them in the plugin settings. |
 | `Could not find enough article text` | The page is JavaScript-rendered or paywalled. Save it from your browser and use `--html-file`. |
 | `The site refused the request` | The site blocks scripts. Use `--html-file`. |
+| `The site did not respond in time` (or `Read timed out`) | Some large sites, often behind Akamai or Cloudflare bot protection, quietly stall automated requests instead of refusing them. The tool sends browser-style headers and retries once, but some sites still block it. Use `--html-file` with a saved copy of the page. |
 | `Missing setting ...` | A required value is missing from `.env`. |
 
 ## Development

@@ -399,6 +399,7 @@ docker image prune -a
 | `Error: Missing setting ANTHROPIC_API_KEY` (or another setting) | That line is missing or empty in `.env`, or you forgot `--env-file .env`. |
 | `Error: WordPress rejected the login (HTTP 401)` | Check `WP_USER` and `WP_APP_PASSWORD`. If they're right and your site is on AWS Lightsail (Bitnami), see the Lightsail fix in the [README troubleshooting](../README.md#troubleshooting). |
 | `Error: Could not find enough article text` or `The site refused the request` | The site blocks automated tools or needs JavaScript. Use a saved page (step 9). |
+| `Error: The site did not respond in time` (or `Read timed out`) | The site's bot protection is stalling the request rather than refusing it. This isn't a Docker problem. Use a saved page (step 9). |
 | `Error: Could not read --html-file` / file not found | The saved page isn't in the `pages` folder, the name doesn't match, or the `-v` part is missing. |
 | Build fails while downloading (`TLS`, `timeout`, `connection reset`) | A network or proxy problem. Check your internet connection and try again. On a work network, ask IT whether Docker Hub (`registry-1.docker.io`) is allowed. |
 | Windows: build is very slow or Docker Desktop won't start | Make sure virtualization is enabled and WSL 2 is installed: run `wsl --install` in an administrator PowerShell, then restart. |

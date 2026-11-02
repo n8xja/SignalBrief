@@ -112,3 +112,25 @@ def test_extract_article_from_html():
     assert art["title"] == "Test Headline"
     assert "CVE-2026-12345" in art["text"]
     assert "Menu Home About" not in art["text"]
+
+
+def test_fetch_sends_browser_headers():
+    ok = SimpleNamespace(status_code=200, text="<html></html>")
+    with mock.patch.object(s.requests, "get", return_value=ok) as get:
+        s.fetch_html("https://example.com/a")
+    headers = get.call_args.kwargs["headers"]
+    assert "Accept-Language" in headers and "Accept" in headers
+    assert "Chrome/" in headers["User-Agent"]
+
+
+def test_fetch_retries_timeout_then_succeeds():
+    ok = SimpleNamespace(status_code=200, text="<html>ok</html>")
+    with mock.patch.object(s.requests, "get", side_effect=[s.requests.Timeout("slow"), ok]) as get:
+        assert s.fetch_html("https://example.com/a") == "<html>ok</html>"
+    assert get.call_count == 2
+
+
+def test_fetch_timeout_gives_html_file_hint():
+    with mock.patch.object(s.requests, "get", side_effect=s.requests.Timeout("slow")):
+        with pytest.raises(s.BriefError, match="--html-file"):
+            s.fetch_html("https://example.com/a")
